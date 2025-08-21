@@ -4,6 +4,8 @@
 
 include("enhanced_playermodel_selector/default_playermodels.lua")
 
+hook.Remove( "Think", "garbage_day_ChooseHandsModel" ) -- Remove the hook, so we can actually change hands. Fix for https://steamcommunity.com/sharedfiles/filedetails/?id=3226024708
+
 local flag = { FCVAR_REPLICATED }
 if SERVER then flag = { FCVAR_ARCHIVE, FCVAR_REPLICATED } end
 local convars = { }
@@ -34,7 +36,6 @@ local addon_legs = false
 
 local debugmode = GetConVar( "sv_playermodel_selector_debug" ):GetBool() or false
 cvars.AddChangeCallback( "sv_playermodel_selector_debug", function() debugmode = GetConVar( "sv_playermodel_selector_debug" ):GetBool() end )
-
 
 --local function client_sync( ply )
 --	net.Start("lf_playermodel_client_sync")
@@ -847,7 +848,7 @@ function Menu.Setup()
 						local icon = ModelIconLayout:Add( "SpawnIcon" )
 						icon:SetSize( 64, 64 )
 						--icon:InvalidateLayout( true )
-						icon:SetModel( "models/kleiner_animations.mdl" )
+						icon:SetModel( "models/weapons/c_arms.mdl" )
 						icon:SetTooltip( name .. "\n" .. result.model )
 						icon.ResultList = result
 
