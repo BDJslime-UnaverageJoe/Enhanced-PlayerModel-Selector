@@ -1782,6 +1782,9 @@ function Menu.Setup()
 								<td><a href="javascript:url.open( 'https://steamcommunity.com/id/mikgazer/' )" oncontextmenu="url.copy( 'https://steamcommunity.com/id/mikgazer/' )">Hana</a></td> <td>Spanish</td>
 							</tr>
 							<tr align=center>
+								<td><a href="javascript:url.open( 'https://github.com/PlucktheDragon' )" oncontextmenu="url.copy( 'https://github.com/PlucktheDragon' )">PlucktheDragon</a></td> <td>French</td>
+							</tr>
+							<tr align=center>
 								<td>Machine Translation</td> <td>Korean</td>
 							</tr>
 							<tr align=center>
