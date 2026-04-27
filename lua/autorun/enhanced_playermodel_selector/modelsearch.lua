@@ -1,7 +1,7 @@
 // Taken from Addon Finder: In-Game Addon Locator by Stoneman https://steamcommunity.com/sharedfiles/filedetails/?id=2915483255
-
+AddCSLuaFile()
 // It seems like we have to do it for each fucking category for fuck sake
-local function SearchAddonsFrom(target)
+function SearchAddonsFrom(target)
     target = string.lower(target)
     local result = StonemanAddonSearcherCache[target]
 
@@ -27,7 +27,6 @@ local function SearchAddonsFrom(target)
 
     for _, addon in pairs( engine.GetAddons() ) do
         if result == addon.title then
-            PrintTable(addon)
             return addon
         end
     end

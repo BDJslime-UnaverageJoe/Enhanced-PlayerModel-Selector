@@ -471,6 +471,12 @@ hook.Add( "PostGamemodeLoaded", "lf_playermodel_sboxcvars", function()
 	CreateConVar( "cl_playerhands", "", { FCVAR_ARCHIVE, FCVAR_USERINFO, FCVAR_DONTRECORD }, "The hands to use, if the model has any" )
 	CreateConVar( "cl_playerhandsbodygroups", "0", { FCVAR_ARCHIVE, FCVAR_USERINFO, FCVAR_DONTRECORD }, "The bodygroups on the hands to use, if the model has any" )
 	CreateConVar( "cl_playerhandsskin", "0", { FCVAR_ARCHIVE, FCVAR_USERINFO, FCVAR_DONTRECORD }, "The skin on the hands to use, if the model has any" )
+	CreateConVar( "cl_playermodelid", "0", { FCVAR_ARCHIVE, FCVAR_USERINFO, FCVAR_DONTRECORD }, "The workshop id assosated with the model, if the model is part of the addon" )
+
+	cvars.AddChangeCallback("cl_playermodel", function(convar_name, value_old, value_new)
+		local addon = SearchAddonsFrom(player_manager.TranslatePlayerModel(value_new)) or {["wsid"] = 0}
+    	RunConsoleCommand( "cl_playermodelid", addon.wsid )
+	end)
 end )
 
 
@@ -505,6 +511,7 @@ local function LoadFavorite( ply, cmd, args )
 		RunConsoleCommand( "cl_playerhands", Favorites[name].hand )
 		RunConsoleCommand( "cl_playerhandsbodygroups", Favorites[name].handgroups )
 		RunConsoleCommand( "cl_playerhandsskin", Favorites[name].handskin )
+		RunConsoleCommand( "cl_playermodelid", Favorites[name].wsid )
 		timer.Simple( 0.1, LoadPlayerModel )
 	else
 		print( "Favorite not found. Remember: The name is case-sensitive and should be put in quotation marks." )
@@ -729,6 +736,7 @@ function Menu.Setup()
 				RunConsoleCommand( "cl_playerhands", "" )
 				RunConsoleCommand( "cl_playerhandsbodygroups", "0" )
 				RunConsoleCommand( "cl_playerhandsskin", "0" )
+				RunConsoleCommand( "cl_playermodelid", SearchAddonsFrom(player_manager.TranslatePlayerModel(name)).wsid )
 				timer.Simple( 0.3, function() Menu.UpdateFromConvars() end )
 			end
 			
@@ -1060,8 +1068,8 @@ function Menu.Setup()
 		FavList:SetMultiSelect( true )
 		FavList:AddColumn( "#EPS.Favorites" )
 		FavList:AddColumn( "#EPS.Favorites.Model" )
-		FavList:AddColumn( "#EPS.Favorites.Skin" ):SetFixedWidth( 40 )
 		FavList:AddColumn( "#EPS.Favorites.Bodygroups" )
+		FavList:AddColumn( "#EPS.Favorites.Id" ):SetFixedWidth( 75 )
 		FavList.DoDoubleClick = function( id, sel )
 			local name = tostring( FavList:GetLine( sel ):GetValue( 1 ) )
 			if istable( Favorites[name] ) then
@@ -1080,7 +1088,7 @@ function Menu.Setup()
 		function Menu.FavPopulate()
 			FavList:Clear()
 			for k, v in pairs( Favorites ) do
-				FavList:AddLine( k, v.model, v.bodygroups, v.hand )
+				FavList:AddLine( k, v.model, v.bodygroups, v.wsid )
 			end
 			FavList:SortByColumn( 1 )
 		end
@@ -1102,6 +1110,7 @@ function Menu.Setup()
 				RunConsoleCommand( "cl_playerhands", Favorites[name].hand )
 				RunConsoleCommand( "cl_playerhandsbodygroups", Favorites[name].handgroups )
 				RunConsoleCommand( "cl_playerhandsskin", Favorites[name].handskin )
+				RunConsoleCommand( "cl_playermodelid", Favorites[name].wsid )
 				timer.Simple( 0.3, function()
 					Menu.UpdateFromConvars()
 				end )
@@ -1129,7 +1138,7 @@ function Menu.Setup()
 			Favorites[name].hand = LocalPlayer():GetInfo( "cl_playerhands" )
 			Favorites[name].handgroups = LocalPlayer():GetInfo( "cl_playerhandsbodygroups" )
 			Favorites[name].handskin = LocalPlayer():GetInfo( "cl_playerhandsskin" )
-			Favorites[name].wsid =
+			Favorites[name].wsid = LocalPlayer():GetInfo( "cl_playermodelid" )
 			file.Write( "lf_playermodel_selector/cl_favorites.txt", util.TableToJSON( Favorites, true ) )
 			Menu.FavPopulate()
 		end
@@ -2193,7 +2202,9 @@ function Menu.Setup()
 			ModelPreview:SetModel( handsAnimModel )
 			local model = LocalPlayer():GetInfo( "cl_playerhands" )
 
+			local default = false
 			if ( model == "" ) then
+				default = true
 				model = LocalPlayer():GetInfo( "cl_playermodel" )
 			end
 
@@ -2206,6 +2217,8 @@ function Menu.Setup()
 			ModelPreview.EntityHands:SetNoDraw( true )
 
 			local dumbassproof = HandsModel.skin
+			if default then dumbassproof = LocalPlayer():GetInfo( "cl_playerskin" ) end
+			dumbassproof = tonumber(dumbassproof)
 			if !isnumber( dumbassproof ) then
 				dumbassproof = 0
 			end
