@@ -29,6 +29,7 @@ util.AddNetworkString("lf_playermodel_cvar_change")
 util.AddNetworkString("lf_playermodel_blacklist")
 util.AddNetworkString("lf_playermodel_voxlist")
 util.AddNetworkString("lf_playermodel_update")
+util.AddNetworkString("lf_playermodel_workshop")
 
 local SetMDL = FindMetaTable("Entity").SetModel
 
@@ -70,6 +71,17 @@ if file.Exists( "lf_playermodel_selector/sv_blacklist.txt", "DATA" ) then
 	if istable( loaded ) then
 		for k, v in pairs( loaded ) do
 			Blacklist[tostring(k)] = v
+		end
+		loaded = nil
+	end
+end
+
+local Whitelist = { }
+if file.Exists( "lf_playermodel_selector/sv_whitelist.txt", "DATA" ) then
+	local loaded = util.JSONToTable( file.Read( "lf_playermodel_selector/sv_whitelist.txt", "DATA" ) )
+	if istable( loaded ) then
+		for k, v in pairs( loaded ) do
+			Whitelist[tostring(k)] = v
 		end
 		loaded = nil
 	end
@@ -387,6 +399,7 @@ local MainWindow
 local default_animations = { "idle_all_01", "menu_walk", "menu_combine", "pose_standing_02", "pose_standing_03", "idle_fist", "menu_gman", "idle_all_scared", "menu_zombie_01", "idle_magic", "walk_ar2" }
 local currentanim = 0
 local Favorites = { }
+local History = { }
 --local addon_vox = false
 
 if !file.Exists( "lf_playermodel_selector", "DATA" ) then file.CreateDir( "lf_playermodel_selector" ) end
@@ -407,6 +420,17 @@ if file.Exists( "lf_playermodel_selector/cl_favorites.txt", "DATA" ) then
 		loaded = nil
 	end
 end
+
+if file.Exists( "lf_playermodel_selector/cl_history.txt", "DATA" ) then
+	local loaded = util.JSONToTable( file.Read( "lf_playermodel_selector/cl_history.txt", "DATA" ) )
+	if istable( loaded ) then
+		for k, v in pairs( loaded ) do
+			History[tostring(k)] = v
+		end
+		loaded = nil
+	end
+end
+
 
 local function RRRotateAroundPoint(pos, ang, point, offset_ang)
     local mat = Matrix()
@@ -697,7 +721,7 @@ function Menu.Setup()
 				RunConsoleCommand( "cl_playerbodygroups", "0" )
 				RunConsoleCommand( "cl_playerskin", "0" )
 				RunConsoleCommand( "cl_playerflexes", "0" )
-				-- RunConsoleCommand( "cl_playerhands", "" )
+				RunConsoleCommand( "cl_playerhands", "" )
 				RunConsoleCommand( "cl_playerhandsbodygroups", "0" )
 				RunConsoleCommand( "cl_playerhandsskin", "0" )
 				timer.Simple( 0.3, function() Menu.UpdateFromConvars() end )
@@ -742,7 +766,7 @@ function Menu.Setup()
 							RunConsoleCommand( "cl_playerbodygroups", "0" )
 							RunConsoleCommand( "cl_playerskin", "0" )
 							RunConsoleCommand( "cl_playerflexes", "0" )
-							-- RunConsoleCommand( "cl_playerhands", "" )
+							RunConsoleCommand( "cl_playerhands", "" )
 							RunConsoleCommand( "cl_playerhandsbodygroups", "0" )
 							RunConsoleCommand( "cl_playerhandsskin", "0" )
 							timer.Simple( 0.3, function() Menu.UpdateFromConvars() end )
@@ -1144,7 +1168,7 @@ function Menu.Setup()
 			file.Write( "lf_playermodel_selector/cl_favorites.txt", util.TableToJSON( Favorites, true ) )
 			Menu.FavPopulate()
 		end
-		
+-------------------------------------------------------------------------------
 		
 		local bdcontrols = Menu.Right:Add( "DPanel" )
 		local bgtab = Menu.Right:AddSheet( "#EPS.Bodygroups", bdcontrols, "icon16/group.png" )
@@ -1214,7 +1238,67 @@ function Menu.Setup()
 			RunConsoleCommand( "cl_playercolor", "0.24 0.34 0.41" )
 			RunConsoleCommand( "cl_weaponcolor", "0.30 1.80 2.10" )
 		end
-		
+---------------------------------------------------------------------------------
+		local shoptab = Menu.Right:Add( "DPropertySheet" )
+		Menu.Right:AddSheet( "#EPS.Workshop", shoptab, "icon16/wrench.png" )
+
+			Menu.ShopFilter = shoptab:Add( "DTextEntry" )
+			Menu.ShopFilter:SetPlaceholderText( "#EPS.Search" )
+			Menu.ShopFilter:DockMargin( 8, 0, 8, 4 )
+			Menu.ShopFilter:Dock( TOP )
+			Menu.ShopFilter:SetUpdateOnType( true )
+			Menu.ShopFilter.OnValueChange = function() Menu.ShopPopulate() end
+
+			local HistoryList = shoptab:Add( "DListView" )
+			shoptab:AddSheet( "#EPS.Hands.Table", HistoryList, "icon16/application_view_list.png" )
+			HistoryList:DockMargin( 5, 0, 5, 5 )
+			HistoryList:Dock( FILL )
+			HistoryList:SetMultiSelect( false )
+			HistoryList:AddColumn( "#EPS.Hands.Table.Model" )
+			HistoryList:AddColumn( "#EPS.Hands.Table.Path" )
+			HistoryList.OnRowSelected = function()
+
+			end
+
+
+			function Menu.ShopPopulate()
+				
+				HistoryList:Clear()
+				HistoryList:Clear()
+				
+				local ShopFilter = Menu.ShopFilter:GetValue() or nil
+				
+				local function IsInFilter( name )
+					if not ShopFilter or ShopFilter == "" then
+						return true
+					else
+						local tbl = string.Split( ShopFilter, " " )
+						for _, substr in pairs( tbl ) do
+							if not string.match( name:lower(), string.PatternSafe( substr:lower() ) ) then
+								return false
+							end
+						end
+						return true
+					end
+				end
+						
+				local exister = {}
+				
+				for name, id in SortedPairs( History ) do
+					
+					if IsInFilter( name ) then
+
+						HistoryList:AddLine( name, id )
+						
+					end
+					
+				end
+
+			end
+			
+			Menu.ShopPopulate()
+
+---------------------------------------------------------------------------------
 		
 		local moretab = Menu.Right:Add( "DPropertySheet" )
 		Menu.Right:AddSheet( "#EPS.Settings", moretab, "icon16/key.png" )
