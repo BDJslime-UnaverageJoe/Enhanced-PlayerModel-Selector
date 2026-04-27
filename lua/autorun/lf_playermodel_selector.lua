@@ -3,6 +3,7 @@
 -- Based on: https://github.com/garrynewman/garrysmod/blob/1a2c317eeeef691e923453018236cf9f66ee74b4/garrysmod/gamemodes/sandbox/gamemode/editor_player.lua
 
 include("enhanced_playermodel_selector/default_playermodels.lua")
+include("enhanced_playermodel_selector/modelsearch.lua")
 
 hook.Remove( "Think", "garbage_day_ChooseHandsModel" ) -- Remove the hook, so we can actually change hands. Fix for https://steamcommunity.com/sharedfiles/filedetails/?id=3226024708
 
@@ -189,6 +190,10 @@ local function UpdatePlayerModel( ply )
 		
 		local mdlname = ply:GetInfo( "cl_playermodel" )
 		local mdlpath = player_manager.TranslatePlayerModel( mdlname )
+
+		if mdlpath == player_manager.TranslatePlayerModel( "kleiner" ) and mdlname ~= "kleiner" then
+			
+		end
 		
 		SetMDL( ply, mdlpath )
 		if debugmode then print( "LF_PMS: Set model to: "..tostring( mdlname ).." - "..tostring( mdlpath ) ) end
