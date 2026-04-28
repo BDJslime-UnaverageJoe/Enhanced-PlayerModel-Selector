@@ -650,7 +650,7 @@ if CLIENT then
 		local ModelPreview = MainWindow:Add( "DModelPanel" )
 		ModelPreview:Dock( FILL )
 		ModelPreview:SetFOV( 36 ) -- PM FOV
-		ModelPreview:SetCamPos( Vector( 0, 0, 0 ) )
+		ModelPreview:SetCamPos( vector_origin )
 		ModelPreview:SetDirectionalLight( BOX_RIGHT, Color( 255, 160, 80, 255 ) )
 		ModelPreview:SetDirectionalLight( BOX_LEFT, Color( 80, 160, 255, 255 ) )
 		ModelPreview:SetAmbientLight( Vector( -64, -64, -64 ) )
@@ -659,9 +659,9 @@ if CLIENT then
 		function ModelPreview.DefaultPos()
 			if ( Menu.IsHandsTabActive() ) then return end
 
-			ModelPreview.Angles = Angle( 0, 0, 0 )
+			ModelPreview.Angles = Angle( angle_zero )
 			ModelPreview.Pos = Vector( -100, 0, -61 )
-			ModelPreview.AngleOffset = Angle( 0, 0, 0 )
+			ModelPreview.AngleOffset = Angle( angle_zero )
 		end
 		ModelPreview.DefaultPos()
 
@@ -1215,7 +1215,7 @@ if CLIENT then
 			bdcontrols:DockPadding( 8, 8, 8, 8 )
 
 			local bdcontrolspanel = bdcontrols:Add( "DPanelList" )
-			bdcontrolspanel:EnableVerticalScrollbar( true )
+			bdcontrolspanel:EnableVerticalScrollbar()
 			bdcontrolspanel:Dock( FILL )
 			
 			-- Hands
@@ -1226,7 +1226,7 @@ if CLIENT then
 			h__bgtab.Tab.IsHandsTab = true
 
 			local h__bdcontrolspanel = h__bdcontrols:Add( "DPanelList" )
-			h__bdcontrolspanel:EnableVerticalScrollbar( true )
+			h__bdcontrolspanel:EnableVerticalScrollbar()
 			h__bdcontrolspanel:Dock( FILL )
 			
 			
@@ -1235,7 +1235,7 @@ if CLIENT then
 			flexcontrols:DockPadding( 8, 8, 8, 8 )
 			
 			local flexcontrolspanel = flexcontrols:Add( "DPanelList" )
-			flexcontrolspanel:EnableVerticalScrollbar( true )
+			flexcontrolspanel:EnableVerticalScrollbar()
 			flexcontrolspanel:Dock( FILL )
 			
 			
@@ -1940,18 +1940,6 @@ if CLIENT then
 
 		-- Helper functions
 
-		function Menu.MakeNiceName( str )
-			local newname = {}
-			if string.find(str, ".smd") then str = string.sub(str, 0, -5) end
-
-			for _, s in pairs( string.Explode( "_", str ) ) do
-				if ( string.len( s ) == 1 ) then table.insert( newname, string.upper( s ) ) continue end
-				table.insert( newname, string.upper( string.Left( s, 1 ) ) .. string.Right( s, string.len( s ) - 1 ) ) -- Ugly way to capitalize first letters.
-			end
-
-			return string.Implode( " ", newname )
-		end
-
 		function Menu.PlayHandsPreviewAnimation( panel, playermodel )
 			local iSeq = panel.EntityHandsAnim:LookupSequence( "idle" )
 
@@ -2055,7 +2043,7 @@ if CLIENT then
 
 				local bgroup = vgui.Create( "DNumSlider" )
 				bgroup:Dock( TOP )
-				if !GetConVar("cl_playermodel_selector_translate_bodygroup"):GetBool() or language.GetPhrase( "eps.model_bg."..string.lower(ModelPreview.Entity:GetBodygroupName( k )) ) == "eps.model_bg."..string.lower(ModelPreview.Entity:GetBodygroupName( k )) then bgroup:SetText( Menu.MakeNiceName( ModelPreview.Entity:GetBodygroupName( k ) ) ) else bgroup:SetText( language.GetPhrase( "eps.model_bg."..string.lower(ModelPreview.Entity:GetBodygroupName( k )) ) ) end
+				if !GetConVar("cl_playermodel_selector_translate_bodygroup"):GetBool() or language.GetPhrase( "eps.model_bg."..string.lower(ModelPreview.Entity:GetBodygroupName( k )) ) == "eps.model_bg."..string.lower(ModelPreview.Entity:GetBodygroupName( k )) then bgroup:SetText( string.NiceName( ModelPreview.Entity:GetBodygroupName( k ) ) ) else bgroup:SetText( language.GetPhrase( "eps.model_bg."..string.lower(ModelPreview.Entity:GetBodygroupName( k )) ) ) end
 				bgroup:SetDark( true )
 				bgroup:SetTall( 50 )
 				bgroup:SetDecimals( 0 )
@@ -2080,7 +2068,7 @@ if CLIENT then
 					mdl = string.StripExtension( mdl )
 					mdl = string.GetFileFromFilename( mdl )
 
-					if !GetConVar("cl_playermodel_selector_translate_bodygroup"):GetBool() or language.GetPhrase( "eps.model_bg."..string.lower(mdl) ) == "eps.model_bg."..string.lower(mdl) then tgroup:SetText( Menu.MakeNiceName( mdl )) else tgroup:SetText( language.GetPhrase( "eps.model_bg."..mdl ) ) end
+					if !GetConVar("cl_playermodel_selector_translate_bodygroup"):GetBool() or language.GetPhrase( "eps.model_bg."..string.lower(mdl) ) == "eps.model_bg."..string.lower(mdl) then tgroup:SetText( string.NiceName( mdl )) else tgroup:SetText( language.GetPhrase( "eps.model_bg."..mdl ) ) end
 					if GetConVar("sv_playermodel_selector_debug"):GetBool() and language.GetPhrase( "eps.model_bg."..string.lower(mdl) ) == "eps.model_bg."..string.lower(mdl) then print("eps.model_bg."..string.lower(mdl).."=") end
 					bdcontrolspanel:AddItem( tgroup )
 				end
@@ -2094,7 +2082,7 @@ if CLIENT then
 						model = string.Trim( model, "\\" )
 						model = string.StripExtension( model )
 						model = string.GetFileFromFilename( model )
-						if !GetConVar("cl_playermodel_selector_translate_bodygroup"):GetBool() or language.GetPhrase( "eps.model_bg."..string.lower(model) ) == "eps.model_bg."..string.lower(model) then tgroup:SetText(Menu.MakeNiceName(model) or "idk") else tgroup:SetText(language.GetPhrase( "eps.model_bg."..string.lower(model)) or "idk") end
+						if !GetConVar("cl_playermodel_selector_translate_bodygroup"):GetBool() or language.GetPhrase( "eps.model_bg."..string.lower(model) ) == "eps.model_bg."..string.lower(model) then tgroup:SetText(string.NiceName(model) or "idk") else tgroup:SetText(language.GetPhrase( "eps.model_bg."..string.lower(model)) or "idk") end
 					end
 					
 					Menu.UpdateBodyGroups(something1, val) 
@@ -2133,7 +2121,7 @@ if CLIENT then
 
 					local bgroup = vgui.Create( "DNumSlider" )
 					bgroup:Dock( TOP )
-					bgroup:SetText( Menu.MakeNiceName( ModelPreview.EntityHands:GetBodygroupName( k ) ) )
+					bgroup:SetText( string.NiceName( ModelPreview.EntityHands:GetBodygroupName( k ) ) )
 					bgroup:SetDark( true )
 					bgroup:SetTall( 50 )
 					bgroup:SetDecimals( 0 )
@@ -2152,7 +2140,7 @@ if CLIENT then
 						tgroup = vgui.Create( "DLabel" )
 						tgroup:Dock( TOP )
 						tgroup:DockMargin(10, -15, 0, 0)
-						tgroup:SetText( Menu.MakeNiceName( mdl ))
+						tgroup:SetText( string.NiceName( mdl ))
 						
 						h__bdcontrolspanel:AddItem( tgroup )
 					end
@@ -2160,7 +2148,7 @@ if CLIENT then
 					bgroup.OnValueChanged = function(something1, val)
 						local submdls = ModelPreview.EntityHands:GetBodyGroups()[k+1].submodels
 						if istable(submdls) then
-							tgroup:SetText(Menu.MakeNiceName(submdls[math.Round(val)]) or "idk")
+							tgroup:SetText(string.NiceName(submdls[math.Round(val)]) or "idk")
 						end
 						
 						Menu.UpdateBodyGroups(something1, val) 
@@ -2190,7 +2178,7 @@ if CLIENT then
 					local default = 0
 					if vmin == -1 and vmax == 1 then default = 0.5 end
 					flex:Dock( TOP )
-					flex:SetText( Menu.MakeNiceName( ModelPreview.Entity:GetFlexName( k ) ) )
+					flex:SetText( string.NiceName( ModelPreview.Entity:GetFlexName( k ) ) )
 					flex:SetDark( true )
 					flex:SetTall( 30 )
 					flex:SetDecimals( 2 )
@@ -2291,7 +2279,7 @@ if CLIENT then
 		-- Hold to rotate
 
 		function ModelPreview:DragMousePress( button )
-			self.PressX, self.PressY = gui.MousePos()
+			self.PressX, self.PressY = input.GetCursorPos()
 			self.Pressed = button
 		end
 		
@@ -2336,29 +2324,29 @@ if CLIENT then
 				self:SetFOV( 36 ) -- PM FOV after switching back from Hands Tab
 
 				self.Pos = Vector( -100, 0, -61 )
-				self.Angles = Angle( 0, 0, 0 )
-				self.AngleOffset = Angle( 0, 0, 0 )
+				self.Angles = Angle( angle_zero )
+				self.AngleOffset = Angle( angle_zero )
 			end
 
 			if ( self.Pressed == MOUSE_LEFT ) then
-				local mx, my = gui.MousePos()
+				local mx, my = input.GetCursorPos()
 				self.Angles = self.Angles - Angle( 0, ( self.PressX or mx ) - mx, 0 )
 				
-				self.PressX, self.PressY = gui.MousePos()
+				self.PressX, self.PressY = input.GetCursorPos()
 			end
 			
 			if ( self.Pressed == MOUSE_RIGHT ) then
-				local mx, my = gui.MousePos()
+				local mx, my = input.GetCursorPos()
 				self.AngleOffset = Angle( ( self.PressY*(0.15) or my*(0.15) ) - my*(0.15), 0, ( self.PressX*(-0.15) or mx*(-0.15) ) - mx*(-0.15) )
 				self.Pos, self.Angles = RRRotateAroundPoint(self.Pos, self.Angles, Vector(0, 0, self.Pos.z * -0.5), self.AngleOffset)
-				self.PressX, self.PressY = gui.MousePos()
+				self.PressX, self.PressY = input.GetCursorPos()
 			end
 			
 			if ( self.Pressed == MOUSE_MIDDLE ) then
-				local mx, my = gui.MousePos()
+				local mx, my = input.GetCursorPos()
 				self.Pos = self.Pos - Vector( 0, ( self.PressX*(0.15) or mx*(0.15) ) - mx*(0.15), ( self.PressY*(-0.15) or my*(-0.15) ) - my*(-0.15) )
 				
-				self.PressX, self.PressY = gui.MousePos()
+				self.PressX, self.PressY = input.GetCursorPos()
 			end
 			
 			if ( self.Wheeled ) then
