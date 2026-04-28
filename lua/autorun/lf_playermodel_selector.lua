@@ -190,6 +190,7 @@ if SERVER then
 			local mdlname = ply:GetInfo( "cl_playermodel" )
 			local mdlpath = player_manager.TranslatePlayerModel( mdlname )
 
+			--[[
 			if mdlpath == player_manager.TranslatePlayerModel( "kleiner" ) and mdlname ~= "kleiner" then
 				local wsid = ply:GetInfo( "cl_playermodelid " )
 				if dled then
@@ -207,6 +208,7 @@ if SERVER then
 					if debugmode then print( "LF_PMS: Addon " .. tostring( wsid ) .. " not in whitelist, continuing using default model" ) end
 				end
 			end
+			]]--
 
 			SetMDL( ply, mdlpath )
 			if debugmode then print( "LF_PMS: Set model to: " .. tostring( mdlname ) .. " - " .. tostring( mdlpath ) ) end
@@ -490,21 +492,12 @@ if CLIENT then
 	local playerhands = CreateConVar( "cl_playerhands", "", { FCVAR_ARCHIVE, FCVAR_USERINFO, FCVAR_DONTRECORD }, "The hands to use, if the model has any" )
 	local playerhandsbodygroups = CreateConVar( "cl_playerhandsbodygroups", "0", { FCVAR_ARCHIVE, FCVAR_USERINFO, FCVAR_DONTRECORD }, "The bodygroups on the hands to use, if the model has any" )
 	local playerhandsskin = CreateConVar( "cl_playerhandsskin", "0", { FCVAR_ARCHIVE, FCVAR_USERINFO, FCVAR_DONTRECORD }, "The skin on the hands to use, if the model has any" )
-	local playermodelid = CreateConVar( "cl_playermodelid", "0", { FCVAR_ARCHIVE, FCVAR_USERINFO, FCVAR_DONTRECORD }, "The workshop id assosated with the model, if the model is part of the addon" )
+	local playermodelid = CreateConVar( "cl_playermodelid", "0", { FCVAR_ARCHIVE, FCVAR_USERINFO, FCVAR_DONTRECORD, FCVAR_CHEAT }, "The workshop id associated with the model, if the model is part of an addon. This value should not be changed manually" )
 
-	cvars.AddChangeCallback("cl_playermodel", function(convar_name, value_old, value_new)
+	local function FindModelID(model)
 		local addon = SearchAddonsFrom(player_manager.TranslatePlayerModel(value_new)) or {["wsid"] = 0}
-		playermodelid:SetString(addon.wsid)
-	end)
-
-	hook.Add ("InitPostEntity", "lf_playermodel_current", function()
-		Current.model = playermodel:GetString()
-		Current.bodygroups = playerbodygroups:GetString()
-		Current.skin = playerskin:GetInt()
-		Current.hand = playerhands:GetString()
-		Current.handgroups = playerhandsbodygroups:GetString()
-		Current.handskin = playerhandsskin:GetInt()
-	end)
+		return addon.wsid
+	end
 
 	local function KeyboardOn( pnl )
 		if ( IsValid( MainWindow ) and IsValid( pnl ) and pnl:HasParent( MainWindow ) ) then
@@ -521,31 +514,32 @@ if CLIENT then
 
 
 	local function LoadPlayerModel()
-		if LocalPlayer():IsAdmin() or GetConVar( "sv_playermodel_selector_instantly" ):GetBool() then
-			net.Start("lf_playermodel_update")
-			net.SendToServer()
-		end
-		Current.model = playermodel:GetString()
-		Current.bodygroups = playerbodygroups:GetString()
-		Current.skin = playerskin:GetInt()
-		Current.hand = playerhands:GetString()
-		Current.handgroups = playerhandsbodygroups:GetString()
-		Current.handskin = playerhandsskin:GetInt()
+		RunConsoleCommand( "cl_playermodel", Current.model )
+		playerbodygroups:SetString( Current.bodygroups )
+		playerskin:SetInt( Current.skin )
+		playerhands:SetString( Current.hand )
+		playerhandsbodygroups:SetString( Current.handgroups )
+		playerhandsskin:SetInt( Current.handskin )
+		playermodelid:SetString( Current.modelid or "0" )
+		timer.Simple(0, function ()
+			if LocalPlayer():IsAdmin() or GetConVar( "sv_playermodel_selector_instantly" ):GetBool() then
+				net.Start("lf_playermodel_update")
+				net.SendToServer()
+			end
+		end)
 	end
 	concommand.Add( "playermodel_apply", LoadPlayerModel )
 
 	local function LoadFavorite( ply, cmd, args )
 		local name = tostring( args[1] )
 		if istable( Favorites[name] ) then
-			RunConsoleCommand( "cl_playermodel", Favorites[name].model )
-			playermodel:SetString( Favorites[name].model )
-			playerbodygroups:SetString( Favorites[name].bodygroups )
-			playerskin:SetInt( Favorites[name].skin )
-			playerhands:SetString( Favorites[name].hand )
-			playerhandsbodygroups:SetString( Favorites[name].handgroups )
-			playerhandsskin:SetInt( Favorites[name].handskin )
-			playermodelid:SetString( Favorites[name].wsid )
-			timer.Simple( 0.1, LoadPlayerModel )
+			Current.model = Favorites[name].model
+			Current.bodygroups = Favorites[name].bodygroups
+			Current.skin = Favorites[name].skin
+			Current.hand = Favorites[name].hand
+			Current.handgroups = Favorites[name].handgroups
+			Current.handskin = Favorites[name].handskin
+			Current.modelid = Favorites[name].wsid
 		else
 			print( "Favorite not found. Remember: The name is case-sensitive and should be put in quotation marks." )
 		end
@@ -593,6 +587,13 @@ if CLIENT then
 	end
 	function Menu.Setup()
 
+		Current.model = playermodel:GetString()
+		Current.bodygroups = playerbodygroups:GetString()
+		Current.skin = playerskin:GetInt()
+		Current.hand = playerhands:GetString()
+		Current.handgroups = playerhandsbodygroups:GetString()
+		Current.handskin = playerhandsskin:GetInt()
+
 		MainWindow = vgui.Create( "DFrame" )
 		local fw, fh = math.min( ScrW() - 16, 960 ), math.min( ScrH() - 16, 700 )
 		MainWindow:SetSize( fw, fh )
@@ -601,14 +602,6 @@ if CLIENT then
 		MainWindow:SetDraggable( true )
 		MainWindow:SetScreenLock( false )
 		MainWindow:ShowCloseButton( true )
-		function MainWindow:OnClose()
-			RunConsoleCommand( "cl_playermodel", Current.model or "")
-			playerbodygroups:SetString( Current.bodygroups or "")
-			playerskin:SetInt( Current.skin or 0)
-			playerhands:SetString( Current.hand or "")
-			playerhandsbodygroups:SetString( Current.handgroups or "")
-			playerhandsskin:SetInt( Current.handskin or 0)
-		end
 		MainWindow:Center()
 		MainWindow:MakePopup()
 		MainWindow:SetKeyboardInputEnabled( false )
@@ -746,7 +739,7 @@ if CLIENT then
 		Menu.AnimButton:SetPos( 25 + ResetButtonWidth, fh - 60 )
 		Menu.AnimButton.DoClick = function()
 			currentanim = (currentanim + 1) % (#default_animations)
-			Menu.PlayPreviewAnimation( ModelPreview, playermodel:GetString() )
+			Menu.PlayPreviewAnimation( ModelPreview, Current.model )
 		end
 
 		Menu.Right = MainWindow:Add( "DPropertySheet" )
@@ -754,7 +747,7 @@ if CLIENT then
 		Menu.Right:SetSize( 430, 0 )
 
 		Menu.Right.OnActiveTabChanged = function( self, oldTab, newTab )
-			timer.Simple( 0.1, function() Menu.UpdateFromConvars() end )
+			Menu.UpdateFromConvars()
 		end
 
 			local modeltab = Menu.Right:Add( "DPropertySheet" )
@@ -792,14 +785,15 @@ if CLIENT then
 					local sel = ModelList:GetSelected()
 					if not sel[1] then return end
 					local name = tostring( sel[1]:GetValue(1) )
-					RunConsoleCommand( "cl_playermodel", name )
-					playerbodygroups:SetString( "0" )
-					playerskin:SetInt( 0 )
-					playerflexes:SetString( "0" )
-					playerhands:SetString( "" )
-					playerhandsbodygroups:SetString( "0" )
-					playerhandsskin:SetInt( 0 )
-					timer.Simple( 0.3, function() Menu.UpdateFromConvars() end )
+					Current.model = name
+					Current.bodygroups = "0"
+					Current.skin = 0
+					Current.flex = "0"
+					Current.hand = ""
+					Current.handgroups = "0"
+					Current.handskin = 0
+					Current.modelid = FindModelID(name)
+					Menu.UpdateFromConvars()
 				end
 
 				local AllModels = player_manager.AllValidModels()
@@ -837,14 +831,15 @@ if CLIENT then
 							icon:SetTooltip( name )
 							table.insert( modelicons, icon )
 							icon.DoClick = function()
-								RunConsoleCommand( "cl_playermodel", name )
-								playerbodygroups:SetString( "0" )
-								playerskin:SetInt( 0 )
-								playerflexes:SetString( "0" )
-								playerhands:SetString( "" )
-								playerhandsbodygroups:SetString( "0" )
-								playerhandsskin:SetInt( 0 )
-								timer.Simple( 0.3, function() Menu.UpdateFromConvars() end )
+								Current.model = name
+								Current.bodygroups = "0"
+								Current.skin = 0
+								Current.flex = "0"
+								Current.hand = ""
+								Current.handgroups = "0"
+								Current.handskin = 0
+								Current.modelid = FindModelID(name)
+								Menu.UpdateFromConvars()
 							end
 
 							ModelList:AddLine( name, model )
@@ -894,10 +889,10 @@ if CLIENT then
 					local sel = ModelList:GetSelected()
 					if not sel[1] then return end
 					local name = tostring( sel[1]:GetValue(1) )
-					playerhands:SetString( name )
-					playerhandsbodygroups:SetString( "0" )
-					playerhandsskin:SetInt( 0 )
-					timer.Simple( 0.1, function() Menu.UpdateFromConvars() end )
+					Current.hand = name
+					Current.handgroups = "0"
+					Current.handskin = 0
+					Menu.UpdateFromConvars()
 				end
 
 				local AllModels = player_manager.AllValidModels()
@@ -930,10 +925,10 @@ if CLIENT then
 					icon:SetSpawnIcon( "icon64/playermodel.png" )
 					icon:SetTooltip( "#EPS.Hands.UsePM" )
 					icon.DoClick = function()
-						playerhands:SetString( "" )
-						playerhandsbodygroups:SetString( "0" )
-						playerhandsskin:SetInt( 0 )
-						timer.Simple( 0.1, function() Menu.UpdateFromConvars() end )
+						Current.hand = ""
+						Current.handgroups = "0"
+						Current.handskin = 0
+						Menu.UpdateFromConvars()
 					end
 
 					local exister = {}
@@ -1099,10 +1094,10 @@ if CLIENT then
 								--icon:SetTooltip( name .. "\n" .. result.model )
 							end
 							icon.DoClick = function()
-								playerhands:SetString( name )
-								playerhandsbodygroups:SetString( "0" )
-								playerhandsskin:SetInt( 0 )
-								timer.Simple( 0.1, function() Menu.UpdateFromConvars() end )
+								Current.hand = name
+								Current.handgroups = "0"
+								Current.handskin = 0
+								Menu.UpdateFromConvars()
 							end
 							icon.DoRightClick = function()
 								if IsValid(icon) then
@@ -1135,16 +1130,14 @@ if CLIENT then
 			FavList.DoDoubleClick = function( id, sel )
 				local name = tostring( FavList:GetLine( sel ):GetValue( 1 ) )
 				if istable( Favorites[name] ) then
-					RunConsoleCommand( "cl_playermodel", Favorites[name].model )
-					playerbodygroups:SetString( Favorites[name].bodygroups )
-					playerskin:SetInt( Favorites[name].skin )
-					playerhands:SetString( Favorites[name].hand )
-					playerhandsbodygroups:SetString( Favorites[name].handgroups )
-					playerhandsskin:SetInt( Favorites[name].handskin )
-					playermodelid:SetString( Favorites[name].wsid )
-					timer.Simple( 0.1, function()
-						Menu.UpdateFromConvars()
-					end )
+					Current.model = Favorites[name].model
+					Current.bodygroups = Favorites[name].bodygroups
+					Current.skin = Favorites[name].skin
+					Current.hand = Favorites[name].hand
+					Current.handgroups = Favorites[name].handgroups
+					Current.handskin = Favorites[name].handskin
+					Current.modelid = Favorites[name].wsid
+					Menu.UpdateFromConvars()
 				end
 			end
 
@@ -1167,16 +1160,14 @@ if CLIENT then
 				if not sel[1] then return end
 				local name = tostring( sel[1]:GetValue(1) )
 				if istable( Favorites[name] ) then
-					RunConsoleCommand( "cl_playermodel", Favorites[name].model )
-					playerbodygroups:SetString( Favorites[name].bodygroups )
-					playerskin:SetInt( Favorites[name].skin )
-					playerhands:SetString( Favorites[name].hand )
-					playerhandsbodygroups:SetString( Favorites[name].handgroups )
-					playerhandsskin:SetInt( Favorites[name].handskin )
-					playermodelid:SetString( Favorites[name].wsid )
-					timer.Simple( 0.3, function()
-						Menu.UpdateFromConvars()
-					end )
+					Current.model = Favorites[name].model
+					Current.bodygroups = Favorites[name].bodygroups
+					Current.skin = Favorites[name].skin
+					Current.hand = Favorites[name].hand
+					Current.handgroups = Favorites[name].handgroups
+					Current.handskin = Favorites[name].handskin
+					Current.modelid = Favorites[name].wsid
+					Menu.UpdateFromConvars()
 				end
 			end
 
@@ -1195,13 +1186,13 @@ if CLIENT then
 
 			function Menu.FavAdd( name )
 				Favorites[name] = { }
-				Favorites[name].model = playermodel:GetString()
-				Favorites[name].skin = playerskin:GetInt()
-				Favorites[name].bodygroups = playerbodygroups:GetString()
-				Favorites[name].hand = playerhands:GetString()
-				Favorites[name].handgroups = playerhandsbodygroups:GetString()
-				Favorites[name].handskin = playerhandsskin:GetInt()
-				Favorites[name].wsid = playermodelid:GetString()
+				Favorites[name].model = Current.model
+				Favorites[name].skin = Current.skin
+				Favorites[name].bodygroups = Current.bodygroups
+				Favorites[name].hand = Current.hand
+				Favorites[name].handgroups = Current.handgroups
+				Favorites[name].handskin = Current.handskin
+				Favorites[name].wsid = Current.modelid or FindModelID(Current.model) or 0
 				file.Write( "lf_playermodel_selector/cl_favorites.txt", util.TableToJSON( Favorites, true ) )
 				Menu.FavPopulate()
 			end
@@ -1850,7 +1841,7 @@ if CLIENT then
 							local sel = VOXinstalled:GetSelected()
 							if not sel[1] then return end
 							local v = "models/" .. tostring( sel[1]:GetValue(1) .. ".mdl" )
-							local k = string.lower( player_manager.TranslatePlayerModel( playermodel:GetString() ) )
+							local k = string.lower( player_manager.TranslatePlayerModel( Current.model ) )
 							net.Start( "lf_playermodel_voxlist" )
 							net.WriteInt( 1, 3 )
 							net.WriteString( k )
@@ -2050,38 +2041,38 @@ if CLIENT then
 
 				if ( not handsTabActive ) then ModelPreview.Entity:SetBodygroup( pnl.typenum, math.Round( val ) ) end
 
-				local str = string.Explode( " ", playerbodygroups:GetString() )
+				local str = string.Explode( " ", Current.bodygroups )
 				if ( #str < pnl.typenum + 1 ) then for i = 1, pnl.typenum + 1 do str[ i ] = str[ i ] or 0 end end
 				str[ pnl.typenum + 1 ] = math.Round( val )
-				playerbodygroups:SetString( table.concat( str, " " ) )
+				Current.bodygroups = table.concat( str, " " )
 
 			elseif ( pnl.type == "flex" ) then
 
 				if ( not handsTabActive ) then ModelPreview.Entity:SetFlexWeight( pnl.typenum, math.Round( val, 2 ) ) end
 
-				local str = string.Explode( " ", playerflexes:GetString() )
+				local str = string.Explode( " ", Current.flex )
 				if ( #str < pnl.typenum + 1 ) then for i = 1, pnl.typenum + 1 do str[ i ] = str[ i ] or 0 end end
 				str[ pnl.typenum + 1 ] = math.Round( val, 2 )
-				playerflexes:SetString( table.concat( str, " " ) )
+				Current.flex = table.concat( str, " " )
 
 			elseif ( pnl.type == "skin" ) then
 
 				if ( not handsTabActive ) then ModelPreview.Entity:SetSkin( math.Round( val ) ) end
-				playerskin:SetInt( math.Round( val ) )
+				Current.skin = math.Round( val )
 
 			elseif ( pnl.type == "h__bgroup" ) then
 
 				if true or handsTabActive  then ModelPreview.EntityHands:SetBodygroup( pnl.typenum, math.Round( val ) ) end
 
-				local str = string.Explode( " ", playerhandsbodygroups:GetString() )
+				local str = string.Explode( " ", Current.handbodygroups )
 				if ( #str < pnl.typenum + 1 ) then for i = 1, pnl.typenum + 1 do str[ i ] = str[ i ] or 0 end end
 				str[ pnl.typenum + 1 ] = math.Round( val )
-				playerhandsbodygroups:SetString( table.concat( str, " " ) )
+				Current.handgroups = table.concat( str, " " )
 
 			elseif ( pnl.type == "h__skin" ) then
 
 				if true or handsTabActive  then ModelPreview.EntityHands:SetSkin( math.Round( val ) ) end
-				playerhandsskin:SetInt( math.Round( val ) )
+				Current.handskin = math.Round( val )
 
 			end
 		end
@@ -2104,18 +2095,18 @@ if CLIENT then
 				skins:SetTall( 50 )
 				skins:SetDecimals( 0 )
 				skins:SetMax( nskins )
-				skins:SetValue( playerskin:GetInt() )
+				skins:SetValue( Current.skin )
 				skins.type = "skin"
 				skins.OnValueChanged = Menu.UpdateBodyGroups
 
 				bdcontrolspanel:AddItem( skins )
 
-				ModelPreview.Entity:SetSkin( playerskin:GetInt() )
+				ModelPreview.Entity:SetSkin( Current.skin )
 
 				bgtab.Tab:SetVisible( true )
 			end
 
-			local groups = string.Explode( " ", playerbodygroups:GetString() )
+			local groups = string.Explode( " ", Current.bodygroups )
 			for k = 0, ModelPreview.Entity:GetNumBodyGroups() - 1 do
 				if ( ModelPreview.Entity:GetBodygroupCount( k ) <= 1 ) then continue end
 
@@ -2172,7 +2163,7 @@ if CLIENT then
 			end
 
 			-- Hands
-			if playerhands:GetString() and playerhands:GetString() ~= "" and ( IsValid( ModelPreview.EntityHands ) ) then
+			if Current.hand and Current.hand ~= "" and ( IsValid( ModelPreview.EntityHands ) ) then
 				local nskins = ModelPreview.EntityHands:SkinCount() - 1
 				if ( nskins > 0 ) then
 					local skins = vgui.Create( "DNumSlider" )
@@ -2182,18 +2173,18 @@ if CLIENT then
 					skins:SetTall( 50 )
 					skins:SetDecimals( 0 )
 					skins:SetMax( nskins )
-					skins:SetValue( playerhandsskin:GetInt() )
+					skins:SetValue( Current.handskin )
 					skins.type = "h__skin"
 					skins.OnValueChanged = Menu.UpdateBodyGroups
 
 					h__bdcontrolspanel:AddItem( skins )
 
-					ModelPreview.EntityHands:SetSkin( playerhandsskin:GetInt() )
+					ModelPreview.EntityHands:SetSkin( Current.handskin )
 
 					h__bgtab.Tab:SetVisible( true )
 				end
 
-				local groups = string.Explode( " ", playerhandsbodygroups:GetString() )
+				local groups = string.Explode( " ", Current.handgroups )
 				for k = 0, ModelPreview.EntityHands:GetNumBodyGroups() - 1 do
 					if ( ModelPreview.EntityHands:GetBodygroupCount( k ) <= 1 ) then continue end
 
@@ -2247,7 +2238,7 @@ if CLIENT then
 				t:SetWrap( true )
 				flexcontrolspanel:AddItem( t )
 
-				local flexes = string.Explode( " ", playerflexes:GetString() )
+				local flexes = string.Explode( " ", Current.flex )
 				for k = 0, ModelPreview.Entity:GetFlexNum() - 1 do
 					if ( ModelPreview.Entity:GetFlexNum( k ) <= 1 ) then continue end
 
@@ -2294,12 +2285,13 @@ if CLIENT then
 
 			if true or ( Menu.IsHandsTabActive() ) then
 				ModelPreview:SetModel( handsAnimModel )
-				local model = playerhands:GetString()
+				local model = Current.hand
+				print(model)
 
 				local default = false
 				if ( model == "" ) then
 					default = true
-					model = playermodel:GetString()
+					model = Current.model
 				end
 
 				local HandsModel = player_manager.TranslatePlayerHands( model )
@@ -2311,7 +2303,7 @@ if CLIENT then
 				ModelPreview.EntityHands:SetNoDraw( true )
 
 				local dumbassproof = HandsModel.skin
-				if default then dumbassproof = playerskin:GetInt() end
+				if default then dumbassproof = Current.skin end
 				if not isnumber( dumbassproof ) then
 					dumbassproof = 0
 				end
@@ -2326,7 +2318,7 @@ if CLIENT then
 			end
 
 			if true then
-				local model = playermodel:GetString()
+				local model = Current.model
 				local modelname = player_manager.TranslatePlayerModel( model )
 				util.PrecacheModel( modelname )
 				ModelPreview:SetModel( modelname )
