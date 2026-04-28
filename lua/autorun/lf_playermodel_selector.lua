@@ -404,6 +404,7 @@ local default_animations = { "idle_all_01", "menu_walk", "menu_combine", "pose_s
 local currentanim = 0
 local Favorites = { }
 local History = { }
+local Current = { }
 --local addon_vox = false
 
 if !file.Exists( "lf_playermodel_selector", "DATA" ) then file.CreateDir( "lf_playermodel_selector" ) end
@@ -476,8 +477,15 @@ hook.Add( "PostGamemodeLoaded", "lf_playermodel_sboxcvars", function()
 		local addon = SearchAddonsFrom(player_manager.TranslatePlayerModel(value_new)) or {["wsid"] = 0}
     	RunConsoleCommand( "cl_playermodelid", addon.wsid )
 	end)
-end )
 
+hook.Add ("InitPostEntity", "lf_playermodel_current", function()
+	Current.model = playermodel:GetString()
+	Current.bodygroups = playerbodygroups:GetString()
+	Current.skin = playerskin:GetInt()
+	Current.hand = playerhands:GetString()
+	Current.handgroups = playerhandsbodygroups:GetString()
+	Current.handskin = playerhandsskin:GetInt()
+end)
 
 local function KeyboardOn( pnl )
 	if ( IsValid( MainWindow ) and IsValid( pnl ) and pnl:HasParent( MainWindow ) ) then
@@ -498,6 +506,12 @@ local function LoadPlayerModel()
 		net.Start("lf_playermodel_update")
 		net.SendToServer()
 	end
+	Current.model = playermodel:GetString()
+	Current.bodygroups = playerbodygroups:GetString()
+	Current.skin = playerskin:GetInt()
+	Current.hand = playerhands:GetString()
+	Current.handgroups = playerhandsbodygroups:GetString()
+	Current.handskin = playerhandsskin:GetInt()
 end
 concommand.Add( "playermodel_apply", LoadPlayerModel )
 
@@ -544,6 +558,14 @@ function Menu.Setup()
 	MainWindow:SetDraggable( true )
 	MainWindow:SetScreenLock( false )
 	MainWindow:ShowCloseButton( true )
+	function MainWindow:OnClose()
+		RunConsoleCommand( "cl_playermodel", Current.model or "")
+		playerbodygroups:SetString( Current.bodygroups or "")
+		playerskin:SetInt( Current.skin or 0)
+		playerhands:SetString( Current.hand or "")
+		playerhandsbodygroups:SetString( Current.handgroups or "")
+		playerhandsskin:SetInt( Current.handskin or 0)
+	end
 	MainWindow:Center()
 	MainWindow:MakePopup()
 	MainWindow:SetKeyboardInputEnabled( false )
@@ -665,7 +687,6 @@ function Menu.Setup()
 	local ApplyButtonWidth, ApplyButtonHeight = Menu.ApplyButton:GetTextSize()
 	Menu.ApplyButton:SetPos( fw - (ApplyButtonWidth + 480), 0 )
 	Menu.ApplyButton:SetSize( ApplyButtonWidth + 30, 30 )
-	Menu.ApplyButton:SetEnabled( LocalPlayer():IsAdmin() or GetConVar( "sv_playermodel_selector_instantly" ):GetBool() )
 	Menu.ApplyButton.DoClick = LoadPlayerModel
 	
 	Menu.ResetButton = ModelPreview:Add( "DButton" )
