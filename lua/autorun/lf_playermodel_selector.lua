@@ -48,10 +48,9 @@ cvars.AddChangeCallback( "sv_playermodel_selector_debug", function() debugmode =
 --net.Receive("lf_playermodel_client_sync", function( len, ply ) client_sync( ply ) end )
 
 net.Receive("lf_playermodel_cvar_change", function( len, ply )
-	if ply:IsValid() and ply:IsPlayer() then
+	if ply:IsValid() and ply:IsPlayer() and ply:IsSuperAdmin() then
 		local cvar = net.ReadString()
-		if !convars[cvar] then ply:Kick("Illegal convar change") return end
-		if !ply:IsAdmin() then return end
+		if !convars[cvar] then ply:PrintMessage(HUD_PRINTCONSOLE, "Illegal convar change") return end
 		RunConsoleCommand( cvar, net.ReadString() )
 	end
 end )
@@ -1491,7 +1490,7 @@ function Menu.Setup()
 			t:SetWrap( true )
 			
 			
-			if LocalPlayer():IsAdmin() then
+			if LocalPlayer():IsSuperAdmin() then
 				
 				local panel = moretab:Add( "DPanel" )
 				moretab:AddSheet( "#EPS.Settings.Server", panel, "icon16/world.png" )
