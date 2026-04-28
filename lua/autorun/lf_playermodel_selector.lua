@@ -180,7 +180,7 @@ if SERVER then
 	end
 
 
-	local function UpdatePlayerModel( ply )
+	local function UpdatePlayerModel( ply, dled )
 		if Allowed( ply ) then
 
 			ply.lf_playermodel_spawned = true
@@ -191,7 +191,21 @@ if SERVER then
 			local mdlpath = player_manager.TranslatePlayerModel( mdlname )
 
 			if mdlpath == player_manager.TranslatePlayerModel( "kleiner" ) and mdlname ~= "kleiner" then
-				
+				local wsid = ply:GetInfo( "cl_playermodelid " )
+				if dled then
+					if debugmode then print( "LF_PMS: Failed to find model from addon " .. tostring( wsid )) end
+				else
+					if debugmode then print( "LF_PMS: Missing model detected, attempting to obtain from workshop" ) end
+					if Whitelist[wsid] then
+						-- Download, Mount, Execute the autorun to add playermodel
+						-- TODO
+
+						UpdatePlayerModel( ply, true )
+						return
+					end
+
+					if debugmode then print( "LF_PMS: Addon " .. tostring( wsid ) .. " not in whitelist, continuing using default model" ) end
+				end
 			end
 
 			SetMDL( ply, mdlpath )
@@ -538,6 +552,26 @@ if CLIENT then
 	end
 	concommand.Add( "playermodel_loadfav", LoadFavorite )
 
+	local function RequestAddon( wsid )
+		steamworks.FileInfo( wsid, function( result )
+			PrintTable(result)
+			if result["title"] == "Hidden addon" or result["banned"] then
+				print("banned/hidden")
+				return
+			elseif not string.find(result["tags"], "model") then
+				print("not a model")
+				return
+			elseif not table.IsEmpty(result["content_descriptors"]) then
+				print("content_descriptors")
+				return
+			elseif result["size"] / 100000 >= 150 then
+				print("oversized")
+			end
+			net.Start("lf_playermodel_workshop")
+				net.WriteString(wsid)
+				net.SendToServer()
+		end)
+	end
 
 	-- Horrible. I hate Garry's Mod
 	local HandIconGenerator = GetRenderTarget("HandIconGenerator", 512, 512)
@@ -549,6 +583,9 @@ if CLIENT then
 	} )
 	local matshiny = Material("models/shiny")
 	local hasbgs = Material("eps/hasbgs4.png", "mips smooth") -- or hasbgs3   idk which better
+
+
+	local RequestFrame
 
 
 	function Menu.UpdateFromConvars()
@@ -1289,6 +1326,21 @@ if CLIENT then
 				Menu.ShopFilter:SetUpdateOnType( true )
 				Menu.ShopFilter.OnValueChange = function() Menu.ShopPopulate() end
 
+
+				local HistoryScroll = shoptab:Add( "DScrollPanel" )
+				shoptab:AddSheet( "#EPS.Model.Icons", HistoryScroll, "icon16/application_view_tile.png" )
+				HistoryScroll:DockMargin( 2, 0, 2, 2 )
+				HistoryScroll:Dock( FILL )
+
+				local HistoryIconLayout = HistoryScroll:Add( "DIconLayout" )
+				HistoryIconLayout:SetSpaceX( 2 )
+				HistoryIconLayout:SetSpaceY( 2 )
+				HistoryIconLayout:Dock( FILL )
+
+				local HistoryIcon = { }
+
+				local HistoryPreview = {}
+
 				local HistoryList = shoptab:Add( "DListView" )
 				shoptab:AddSheet( "#EPS.Hands.Table", HistoryList, "icon16/application_view_list.png" )
 				HistoryList:DockMargin( 5, 0, 5, 5 )
@@ -1303,8 +1355,34 @@ if CLIENT then
 
 				function Menu.ShopPopulate()
 
+					HistoryIconLayout:Clear()
 					HistoryList:Clear()
-					HistoryList:Clear()
+
+					local icon = HistoryIconLayout:Add( "SpawnIcon" )
+					icon:SetSize( 192, 192 )
+					icon:SetSpawnIcon( "icon16/add.png" )
+					icon:SetTooltip( "#EPS.Hands.UsePM" )
+					icon.DoClick = function()
+						if IsValid(RequestFrame) then 
+							RequestFrame:MakePopup()
+							return 
+						end
+						RequestFrame = vgui.Create( "DFrame" )
+						RequestFrame:SetSize( 300, 150 )
+						RequestFrame:Center()
+						RequestFrame:SetTitle( "Request an addon" ) 
+						RequestFrame:SetVisible( true ) 
+						RequestFrame:ShowCloseButton( true ) 
+						RequestFrame:MakePopup()
+
+						local TextEntry = vgui.Create( "DTextEntry", RequestFrame ) -- create the form as a child of frame
+						TextEntry:Dock( TOP )
+						TextEntry:SetPlaceholderText( "Enter Workshop ID" )
+						TextEntry.OnEnter = function( self )
+							RequestAddon(self:GetValue())
+							RequestFrame:Close()
+						end
+					end
 
 					local ShopFilter = Menu.ShopFilter:GetValue() or nil
 
