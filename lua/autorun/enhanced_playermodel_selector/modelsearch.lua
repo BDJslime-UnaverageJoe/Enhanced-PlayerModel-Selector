@@ -11,7 +11,7 @@ function SearchAddonsFrom(target)
         if npc then
             local model = npc.Model
             if model then model = string.lower( model ) end
-            
+
             result = StonemanAddonSearcherCache[model]
         end
 
@@ -34,13 +34,13 @@ end
 
 local function AddRecursive(addon, folder, wildcard)
     local files, folders = file.Find( folder .. "*", addon )
-    if ( !files ) then MsgN( "Warning! Not opening '" .. folder .. "' because we cannot search in it!"  ) return false end
+    if ( not files ) then MsgN( "Warning! Not opening '" .. folder .. "' because we cannot search in it!"  ) return false end
 
     for k, v in pairs( files ) do
         if wildcard == "weapon" or wildcard == "entity" then
-            if ( !string.EndsWith( v, ".lua" ) ) then continue end
+            if ( not string.EndsWith( v, ".lua" ) ) then continue end
             local found = v
-            
+
             // Remove the .lua extension
             found = string.gsub(found, ".lua", "")
             found = string.lower(found)
@@ -48,8 +48,8 @@ local function AddRecursive(addon, folder, wildcard)
 
             continue
         else
-            if ( !string.EndsWith( v, ".mdl" ) ) then continue end
-            local found = folder..v
+            if ( not string.EndsWith( v, ".mdl" ) ) then continue end
+            local found = folder .. v
             found = string.lower(found)
             StonemanAddonSearcherCache[found] = addon
 
@@ -57,7 +57,7 @@ local function AddRecursive(addon, folder, wildcard)
         end
     end
 
-    for k, v in pairs( folders ) do 
+    for k, v in pairs( folders ) do
         if wildcard == "weapon" or wildcard == "entity" then
             local found = v
             found = string.lower(found)
