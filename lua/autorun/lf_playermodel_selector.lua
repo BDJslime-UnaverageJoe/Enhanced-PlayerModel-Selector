@@ -398,7 +398,7 @@ end
 if CLIENT then
 
 
-local Version = "4.2"
+local Version = "5.0"
 local Menu = { }
 local MainWindow
 local default_animations = { "idle_all_01", "menu_walk", "menu_combine", "pose_standing_02", "pose_standing_03", "idle_fist", "menu_gman", "idle_all_scared", "menu_zombie_01", "idle_magic", "walk_ar2" }
@@ -1790,11 +1790,12 @@ function Menu.Setup()
 			
 			local title = string.format(language.GetPhrase("EPS.Title"),Version)
 			
-			local intro = [[Created by <a href="javascript:url.open( 'http://steamcommunity.com/id/libertyforce' )" oncontextmenu="url.copy( 'http://steamcommunity.com/id/libertyforce' )">LibertyForce</a>.<br>Thank you for installing this addon! Enjoying it?<br>
-			Modified by <a href="javascript:url.open( 'http://steamcommunity.com/id/Fesiug' )" oncontextmenu="url.copy( 'http://steamcommunity.com/id/Fesiug' )">Fesiug</a>. You can now customize your hands!<br>
-			Modified by <a href="javascript:url.open( 'http://steamcommunity.com/id/yurannnzzz' )" oncontextmenu="url.copy( 'http://steamcommunity.com/id/yurannnzzz' )">YuRaNnNzZZ</a>. You can see your selected hands!<br>
-			Modified by <a href="javascript:url.open( 'http://steamcommunity.com/id/IBRS-4Ever' )" oncontextmenu="url.copy( 'http://steamcommunity.com/id/IBRS-4Ever' )">Insane Black Rock Shooter</a>. Localization Support!<br>
-			<a href="javascript:url.open( 'http://steamcommunity.com/sharedfiles/filedetails/?id=504945881' )" oncontextmenu="url.copy( 'http://steamcommunity.com/sharedfiles/filedetails/?id=504945881' )">Please leave a LIKE on the workshop page.</a>]]
+			local intro = [[Created by: <a href="javascript:url.open( 'https://steamcommunity.com/profiles/76561198105279898' )" oncontextmenu="url.copy( 'https://steamcommunity.com/profiles/76561198105279898' )">LibertyForce</a>.<br>
+			Viewmodel Support: <a href="javascript:url.open( 'https://steamcommunity.com/profiles/76561198254662493' )" oncontextmenu="url.copy( 'https://steamcommunity.com/profiles/76561198254662493' )">Fesiug</a><br>
+			Viewmodel Preview: <a href="javascript:url.open( 'https://steamcommunity.com/profiles/76561198005173328' )" oncontextmenu="url.copy( 'https://steamcommunity.com/profiles/76561198005173328' )">YuRaNnNzZZ</a><br>
+			Localization Support: <a href="javascript:url.open( 'https://steamcommunity.com/profiles/76561198314221237' )" oncontextmenu="url.copy( 'https://steamcommunity.com/profiles/76561198314221237' )">Insane Black Rock Shooter</a><br>
+			Serverside Workshop Support: <a href="javascript:url.open( 'https://steamcommunity.com/profiles/76561198073759827' )" oncontextmenu="url.copy( 'https://steamcommunity.com/profiles/76561198073759827' )">Unaverage Joe.</a><br>
+			Thank you for installing this addon! Enjoying it?<br><a href="javascript:url.open( 'http://steamcommunity.com/sharedfiles/filedetails/?id=504945881' )" oncontextmenu="url.copy( 'http://steamcommunity.com/sharedfiles/filedetails/?id=504945881' )">Please leave a LIKE on the workshop page.</a>]]
 			if !game.SinglePlayer() and !LocalPlayer():IsSuperAdmin() then
 				intro = [[This server is running Enhanced PlayerModel Selector by <a href="javascript:url.open( 'http://steamcommunity.com/id/libertyforce' )" oncontextmenu="url.copy( 'http://steamcommunity.com/id/libertyforce' )">LibertyForce</a>. Enjoying it?<br>
 				<a href="javascript:url.open( 'http://steamcommunity.com/sharedfiles/filedetails/?id=504945881' )" oncontextmenu="url.copy( 'http://steamcommunity.com/sharedfiles/filedetails/?id=504945881' )">Click here to download this addon for SinglePlayer.</a>]]
