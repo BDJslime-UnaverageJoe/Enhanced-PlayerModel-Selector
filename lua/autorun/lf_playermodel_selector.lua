@@ -9,6 +9,7 @@ local EPS_REQUEST = 0
 local EPS_APPROVE = 1
 local EPS_DENY = 2
 local EPS_REMOVE = 3
+local EPS_INFO = -1
 
 hook.Remove( "Think", "garbage_day_ChooseHandsModel" ) -- Remove the hook, so we can actually change hands. Fix for https://steamcommunity.com/sharedfiles/filedetails/?id=3226024708
 
@@ -25,6 +26,29 @@ for cvar, def in pairs( convars ) do
 	CreateConVar( cvar,	def, flag )
 end
 flag = nil
+
+local function CheckValidAddon(result)
+	if SERVER and result.installed then
+		print("installed already")
+		return
+	elseif result["title"] == "Hidden addon" or result["banned"] then
+		print("hidden/banned")
+		return
+	elseif not string.find(result["tags"], "Addon") or not string.find(result["tags"], "Model") then
+		print("not an addon")
+		return
+	elseif not table.IsEmpty(result["content_descriptors"]) then
+		print("nsfw")
+		return
+	elseif not string.find(string.lower(result["title"]), "playermodel") and not string.find(string.lower(result["title"]), "pm") then
+		print("pm unknown")
+		result["unpm"] = true
+	elseif result["size"] / 100000 >= 150 then
+		print("oversized")
+		result["oversize"] = true
+	end
+	return true
+end
 
 if SERVER then
 
@@ -92,6 +116,8 @@ if SERVER then
 		end
 	end
 
+	local Queue = {}
+
 	local function AddNewModel(wsid)
 		if false then
 			--TODO
@@ -101,43 +127,53 @@ if SERVER then
 		PrintMessage("LF_PMS: New Model/s have been added.")
 	end
 
-	local function UpdateQueue()
-		local queue = util.TableToJSON(list.Get("lf_playermodel_queue"))
+	local function UpdateQueue(filter)
+		if not filter then
+			filter = RecipientFilter()
 
-		local filter = RecipientFilter()
-
-		for _, v in ipairs(player.GetAll()) do
-			if v:IsValid() and v:IsAdmin() then filter:AddPlayer(v) end
+			for _, v in ipairs(player.GetAll()) do
+				if v:IsValid() and v:IsAdmin() then filter:AddPlayer(v) end
+			end
 		end
-
 		net.Start("lf_playermodel_workshop")
-			net.WriteString(queue)
+			net.WriteString(util.TableToJSON(Queue))
 			net.Send(filter)
 	end
 
 	net.Receive("lf_playermodel_workshop", function( len, ply )
 		if ply:IsValid() and ply:IsPlayer() then
-			local wsid = net.ReadString()
-			steamworks.FileInfo( wsid, function( result ) if result.installed then return end end)
 			local mode = net.ReadInt( 3 )
+
+			if mode == EPS_INFO then
+				UpdateQueue(ply)
+				return
+			end
+			local wsid = net.ReadString()
+
 			if mode == EPS_REQUEST then
 				if Whitelist[wsid] then
 					AddNewModel(wsid)
-					list.RemoveEntry( "lf_playermodel_queue", wsid )
 					return
 				end
-				if not list.Contains( "lf_playermodel_queue", wsid) then list.Add("lf_playermodel_queue", wsid ) end
-				UpdateQueue()
+				steamworks.FileInfo( wsid, function( result )
+					if CheckValidAddon( result ) then
+						Queue[wsid] = ply:SteamID64()
+						UpdateQueue()
+					end
+				end)
 				return
 			end
+
 			if not ply:IsAdmin() then return end
 			if mode == EPS_APPROVE then
 				Whitelist[wsid] = true
 				file.Write( "lf_playermodel_selector/sv_whitelist.txt", util.TableToJSON( Whitelist, true ) )
-				list.RemoveEntry( "lf_playermodel_queue", wsid )
+				Queue[wsid] = nil
 				UpdateQueue()
+
 			elseif mode == EPS_DENY then
 				return
+
 			elseif mode == EPS_REMOVE then
 				return
 			end
@@ -236,13 +272,6 @@ if SERVER then
 		end
 	end
 
-	local function IsInstalled(wsid)
-		steamworks.FileInfo(wsid, function( result )
-			return result.installed
-		end)
-		return false
-	end
-
 	local function UpdatePlayerModel( ply )
 		if Allowed( ply ) then
 
@@ -254,15 +283,19 @@ if SERVER then
 			local mdlpath = player_manager.TranslatePlayerModel( mdlname )
 
 			if mdlpath == player_manager.TranslatePlayerModel( "kleiner" ) and mdlname ~= "kleiner" and  ply:GetInfo( "cl_playermodelid " ) ~= "0" then
-				local wsid = ply:GetInfo( "cl_playermodelid " )
-				if Whitelist[wsid] and not IsInstalled(wsid) then
-					AddNewModel(wsid)
-					hook.Add( "GameContentChanged", "EPS_NewModel_" .. ply:SteamID64(), function()
-						UpdatePlayerModel( ply, true )
-						hook.Remove( "GameContentChanged", "EPS_NewModel_" .. ply:SteamID64())
+				local wsid = ply:GetInfo( "cl_playermodelid" )
+				if Whitelist[wsid] then
+					steamworks.FileInfo(wsid, function( result )
+						if not result.installed then	
+							hook.Add( "GameContentChanged", "EPS_NewModel_" .. ply:SteamID64(), function()
+								UpdatePlayerModel( ply )
+								hook.Remove( "GameContentChanged", "EPS_NewModel_" .. ply:SteamID64())
+							end)
+							AddNewModel(wsid)
+						end
 					end)
-					return
-				end
+				end 
+				
 				--if debugmode then print( "LF_PMS: Failed to find model from addon " .. tostring( wsid )) end
 				--if debugmode then print( "LF_PMS: Missing model detected, attempting to obtain from workshop" ) end
 				--if debugmode then print( "LF_PMS: Addon " .. tostring( wsid ) .. " not in whitelist, continuing using default model" ) end
@@ -512,6 +545,24 @@ if CLIENT then
 		end
 	end
 
+	local Queue = { }
+
+	net.Receive("lf_playermodel_workshop", function()
+		Queue = { }
+		local message = util.JSONToTable(net.ReadString())
+		PrintTable(message)
+		for k, v in pairs(message) do
+			local ply = player.GetBySteamID64(v)
+			if ply then
+				steamworks.FileInfo( k, function( result ) 
+					Queue[k] = result
+					PrintTable(Queue[k])
+					Queue[k].ply = v
+				end)
+			end
+		end
+		Menu.QueuePopulate()
+	end)
 
 	local function RRRotateAroundPoint(pos, ang, point, offset_ang)
 		local mat = Matrix()
@@ -610,42 +661,24 @@ if CLIENT then
 	end
 	concommand.Add( "playermodel_loadfav", LoadFavorite )
 
-	local function RequestAddon( wsid, save )
+	local function RequestAddon( wsid )
 		steamworks.FileInfo( wsid, function( result )
-			if result["title"] == "Hidden addon" or result["banned"] then
-				print("banned/hidden")
-				return
-			elseif not string.find(result["tags"], "Addon") or not string.find(result["tags"], "Model") then
-				print("not a model addon")
-				return
-			elseif not table.IsEmpty(result["content_descriptors"]) then
-				print("content_descriptors")
-				return
-			elseif not string.find(string.lower(result["title"]), "playermodel") and not string.find(string.lower(result["title"]), "pm") then
-				print("unknown valid model")
-			elseif result["size"] / 100000 >= 150 then
-				print("oversized")
-			end
-			print("success")
-
-			if save and not History[wsid] then
-				if ( not file.Exists( "cache/workshop/" .. result.previewid .. ".cache","GAME" ) ) then
-					steamworks.Download( result.previewid, false, function( name ) end )
+			if CheckValidAddon( result ) then
+				if not History[wsid] then
+					History[wsid] = { }
+					History[wsid].previewid = result.previewid
+					History[wsid].title = result["title"]
+					History[wsid].time = os.time()
+					History[wsid].size = result["size"]
+					file.Write( "lf_playermodel_selector/cl_history.txt", util.TableToJSON( History, true ) )
+					Menu.ShopPopulate()
 				end
-				History[wsid] = { }
-				History[wsid].previewid = result.previewid
-				History[wsid].title = result["title"]
-				History[wsid].time = os.time()
-				History[wsid].size = result["size"]
-				file.Write( "lf_playermodel_selector/cl_history.txt", util.TableToJSON( History, true ) )
-				Menu.ShopPopulate()
-			end
 
-			print(wsid)
-			net.Start("lf_playermodel_workshop")
-				net.WriteString( wsid )
-				net.WriteInt( EPS_REQUEST, 3)
+				net.Start("lf_playermodel_workshop")
+					net.WriteInt( EPS_REQUEST, 3)
+					net.WriteString( wsid )
 				net.SendToServer()
+			end
 		end)
 	end
 
@@ -1411,8 +1444,8 @@ if CLIENT then
 					options:AddOption( "Request Addon", function() RequestAddon(id) end):SetIcon( "icon16/add.png" )
 					if LocalPlayer():IsAdmin() then options:AddOption( "Force Add Addon", function() 
 						net.Start("lf_playermodel_workshop")
+							net.WriteInt( EPS_APPROVE, 3)
 							net.WriteString(id)
-							net.WriteInt(EPS_APPROVE, 3)
 							net.SendToServer()
 					end):SetIcon( "icon16/shield.png" ) end
 					options:AddSpacer()
@@ -1431,11 +1464,6 @@ if CLIENT then
 				end
 
 				if LocalPlayer():IsAdmin() then
-					local queue
-
-					net.Receive("lf_playermodel_workshop", function()
-						queue = util.JSONToTable(net.ReadString())
-					end)
 
 					local QueueList = shoptab:Add( "DListView" )
 					shoptab:AddSheet( "#EPS.Hands.Table", QueueList, "icon16/script_edit.png" )
@@ -1446,11 +1474,22 @@ if CLIENT then
 					QueueList:AddColumn( "#EPS.Workshop.Id" ):SetFixedWidth( 75 )
 					QueueList:AddColumn( "" ):SetFixedWidth( 16 )
 
-					function Menu.ShopPopulate()
+					function Menu.QueuePopulate()
 						QueueList:Clear()
 
+						QueueList:AddLine( "k", "v" )
 
+						local ShopFilter = Menu.ShopFilter:GetValue() or nil
+						-- IsInFilter( v.title, ShopFilter )
+						--PrintTable(Queue)
+						for k, v in pairs(Queue) do
+							if true then
+								QueueList:AddLine( k, k )
+							end
+						end
 					end
+
+					Menu.QueuePopulate()
 				end
 
 
@@ -1480,7 +1519,7 @@ if CLIENT then
 						TextEntry:Dock( TOP )
 						TextEntry:SetPlaceholderText( "Enter Workshop ID" )
 						TextEntry.OnEnter = function( self )
-							RequestAddon(self:GetValue(), true)
+							RequestAddon(self:GetValue())
 							RequestFrame:Close()
 						end
 					end
@@ -1493,8 +1532,8 @@ if CLIENT then
 							local icon = HistoryIconLayout:Add( "DImageButton" )
 							icon:SetSize( 128, 128 )
 							if v.previewid then
-								if ( not file.Exists( "cache/workshop/" .. v.previewid .. ".cache","GAME" ) ) then
-									steamworks.Download( v.previewid, false)
+								if not file.Exists( "cache/workshop/" .. v.previewid .. ".cache","GAME" ) then
+									steamworks.Download( v.previewid, false, function() end)
 								end
 								icon:SetMaterial( AddonMaterial("cache/workshop/" .. v.previewid .. ".cache","GAME") )
 							end
@@ -1507,12 +1546,14 @@ if CLIENT then
 								local options = DermaMenu(false, icon)
 
 								options:AddOption( "Request Addon", function() RequestAddon(id) end):SetIcon( "icon16/add.png" )
-								if LocalPlayer():IsAdmin() then options:AddOption( "Force Add Addon", function()
+								if LocalPlayer():IsAdmin() then 
+									options:AddOption( "Force Add Addon", function()
 									net.Start("lf_playermodel_workshop")
+										net.WriteInt( EPS_APPROVE, 3)
 										net.WriteString(id)
-										net.WriteInt(EPS_APPROVE, 3)
 										net.SendToServer()
-								end):SetIcon( "icon16/shield.png" ) end
+									end):SetIcon( "icon16/shield.png" )
+								end
 								options:AddSpacer()
 								options:AddOption( "Open Workshop Page", function() gui.OpenURL( "https://steamcommunity.com/sharedfiles/filedetails/?id=" .. id) end):SetIcon( "icon16/world.png" )
 								options:AddOption( "Copy to Clipboard", function() SetClipboardText( id ) end):SetIcon( "icon16/page.png" )
