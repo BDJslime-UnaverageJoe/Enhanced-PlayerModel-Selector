@@ -662,6 +662,19 @@ if CLIENT then
 
 	local RequestFrame
 
+	local function IsInFilter( name, filter )
+		if not filter or filter == "" then
+			return true
+		else
+			local tbl = string.Split( filter, " " )
+			for _, substr in pairs( tbl ) do
+				if not string.match( name:lower(), string.PatternSafe( substr:lower() ) ) then
+					return false
+				end
+			end
+			return true
+		end
+	end
 
 	function Menu.UpdateFromConvars()
 		-- wah wah dont error ples
@@ -885,24 +898,10 @@ if CLIENT then
 					ModelList:Clear()
 
 					local ModelFilter = Menu.ModelFilter:GetValue() or nil
-
-					local function IsInFilter( name )
-						if not ModelFilter or ModelFilter == "" then
-							return true
-						else
-							local tbl = string.Split( ModelFilter, " " )
-							for _, substr in pairs( tbl ) do
-								if not string.match( name:lower(), string.PatternSafe( substr:lower() ) ) then
-									return false
-								end
-							end
-							return true
-						end
-					end
-
+					
 					for name, model in SortedPairs( AllModels ) do
 
-						if IsInFilter( name ) then
+						if IsInFilter( name, ModelFilter ) then
 							if GetConVar( "cl_playermodel_selector_hide_defaults" ):GetBool() and DefaultPlayerModels[model] then continue end -- Testing, may have bugs.
 							if GetConVar( "cl_playermodel_selector_ignorehands" ):GetBool() and player_manager.TranslatePlayerHands(name).model == model then continue end -- No
 							local icon = ModelIconLayout:Add( "SpawnIcon" )
@@ -987,20 +986,6 @@ if CLIENT then
 
 					local ModelFilter = Menu.HandsFilter:GetValue() or nil
 
-					local function IsInFilter( name )
-						if not ModelFilter or ModelFilter == "" then
-							return true
-						else
-							local tbl = string.Split( ModelFilter, " " )
-							for _, substr in pairs( tbl ) do
-								if not string.match( name:lower(), string.PatternSafe( substr:lower() ) ) then
-									return false
-								end
-							end
-							return true
-						end
-					end
-
 					local icon = ModelIconLayout:Add( "SpawnIcon" )
 					icon:SetSize( 64, 64 )
 					icon:SetSpawnIcon( "icon64/playermodel.png" )
@@ -1016,7 +1001,7 @@ if CLIENT then
 
 					for name, model in SortedPairs( AllModels ) do
 
-						if IsInFilter( name ) then
+						if IsInFilter( name, ModelFilter ) then
 							local result = player_manager.TranslatePlayerHands( name )
 							if exister[result.model:lower()] then
 								continue
@@ -1396,7 +1381,10 @@ if CLIENT then
 				Menu.ShopFilter:DockMargin( 8, 0, 8, 4 )
 				Menu.ShopFilter:Dock( TOP )
 				Menu.ShopFilter:SetUpdateOnType( true )
-				Menu.ShopFilter.OnValueChange = function() Menu.ShopPopulate() end
+				Menu.ShopFilter.OnValueChange = function() 
+					Menu.ShopPopulate()
+					if LocalPlayer():IsAdmin() then Menu.QueuePopulate() end
+				end
 
 
 				local HistoryScroll = shoptab:Add( "DScrollPanel" )
@@ -1457,6 +1445,11 @@ if CLIENT then
 					QueueList:AddColumn( "#EPS.Workshop.Id" ):SetFixedWidth( 75 )
 					QueueList:AddColumn( "" ):SetFixedWidth( 16 )
 
+					function Menu.ShopPopulate()
+						QueueList:Clear()
+
+
+					end
 				end
 
 
@@ -1493,23 +1486,9 @@ if CLIENT then
 
 					local ShopFilter = Menu.ShopFilter:GetValue() or nil
 
-					local function IsInFilter( name )
-						if not ShopFilter or ShopFilter == "" then
-							return true
-						else
-							local tbl = string.Split( ShopFilter, " " )
-							for _, substr in pairs( tbl ) do
-								if not string.match( name:lower(), string.PatternSafe( substr:lower() ) ) then
-									return false
-								end
-							end
-							return true
-						end
-					end
-
 					for id, v in SortedPairsByMemberValue( History, "time", true ) do
 
-						if IsInFilter( v.title ) then
+						if IsInFilter( v.title, ShopFilter ) then
 							local icon = HistoryIconLayout:Add( "DImageButton" )
 							icon:SetSize( 128, 128 )
 							if v.previewid then
