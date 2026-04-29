@@ -87,6 +87,32 @@ if SERVER then
 		end
 	end
 
+
+	local function UpdateQueue()
+		local queue = util.TableToJSON(list.Get("lf_playermodel_queue"))
+
+		local filter = RecipientFilter()
+
+		for _, v in ipairs(player.GetAll()) do
+			if v:IsValid() and v:IsAdmin() then filter:AddPlayer(v) end
+		end
+
+		net.Start("lf_playermodel_workshop")
+			net.WriteString(queue)
+			net.Send(filter)
+	end
+
+	net.Receive("lf_playermodel_workshop", function( len, ply )
+		if ply:IsValid() and ply:IsPlayer() then
+			local wsid = net.ReadString()
+			if Whitelist[wsid] then
+				return
+			end
+			if not list.HasEntry("lf_playermodel_queue", wsid) then list.Add("lf_playermodel_queue", wsid) end
+			UpdateQueue()
+		end
+	end )
+
 	net.Receive("lf_playermodel_blacklist", function( len, ply )
 		if ply:IsValid() and ply:IsPlayer() and ply:IsAdmin() then
 			local mode = net.ReadInt( 3 )
@@ -546,20 +572,36 @@ if CLIENT then
 	end
 	concommand.Add( "playermodel_loadfav", LoadFavorite )
 
-	local function RequestAddon( wsid )
+	local function RequestAddon( wsid, save )
 		steamworks.FileInfo( wsid, function( result )
 			PrintTable(result)
 			if result["title"] == "Hidden addon" or result["banned"] then
 				print("banned/hidden")
 				return
-			elseif not string.find(result["tags"], "model") then
-				print("not a model")
+			elseif not string.find(result["tags"], "Addon") or not string.find(result["tags"], "Model") then
+				print("not a model addon")
 				return
 			elseif not table.IsEmpty(result["content_descriptors"]) then
 				print("content_descriptors")
 				return
+			elseif not string.find(string.lower(result["title"]), "playermodel") and not string.find(string.lower(result["title"]), "pm") then
+				print("unknown valid model")
 			elseif result["size"] / 100000 >= 150 then
 				print("oversized")
+			end
+			print("success")
+
+			if save and not History[wsid] then
+				if ( not file.Exists( "cache/workshop/" .. result.previewid .. ".cache","GAME" ) ) then
+					steamworks.Download( result.previewid, false, function( name ) end )
+				end
+				History[wsid] = { }
+				History[wsid].previewid = result.previewid
+				History[wsid].title = result["title"]
+				History[wsid].time = os.time()
+				History[wsid].size = result["size"]
+				file.Write( "lf_playermodel_selector/cl_history.txt", util.TableToJSON( History, true ) )
+				Menu.ShopPopulate()
 			end
 			net.Start("lf_playermodel_workshop")
 				net.WriteString(wsid)
@@ -1126,7 +1168,7 @@ if CLIENT then
 			FavList:AddColumn( "#EPS.Favorites" )
 			FavList:AddColumn( "#EPS.Favorites.Model" )
 			FavList:AddColumn( "#EPS.Favorites.Bodygroups" )
-			FavList:AddColumn( "#EPS.Favorites.Id" ):SetFixedWidth( 75 )
+			FavList:AddColumn( "#EPS.Workshop.Id" ):SetFixedWidth( 75 )
 			FavList.DoDoubleClick = function( id, sel )
 				local name = tostring( FavList:GetLine( sel ):GetValue( 1 ) )
 				if istable( Favorites[name] ) then
@@ -1328,18 +1370,34 @@ if CLIENT then
 				HistoryIconLayout:SetSpaceY( 2 )
 				HistoryIconLayout:Dock( FILL )
 
-				local HistoryIcon = { }
-
-				local HistoryPreview = {}
-
 				local HistoryList = shoptab:Add( "DListView" )
 				shoptab:AddSheet( "#EPS.Hands.Table", HistoryList, "icon16/application_view_list.png" )
 				HistoryList:DockMargin( 5, 0, 5, 5 )
 				HistoryList:Dock( FILL )
 				HistoryList:SetMultiSelect( false )
 				HistoryList:AddColumn( "#EPS.Hands.Table.Model" )
-				HistoryList:AddColumn( "#EPS.Hands.Table.Path" )
-				HistoryList.OnRowSelected = function()
+				HistoryList:AddColumn( "#EPS.Workshop.Id" ):SetFixedWidth( 75 )
+
+				HistoryList.OnRowSelected = function( panel, rowIndex, row )
+					RequestAddon( row:GetValue( 2 ) )
+				end
+
+				if LocalPlayer():IsAdmin() then
+					local queue
+
+					net.Receive("lf_playermodel_workshop", function()
+						queue = util.JSONToTable(net.ReadString())
+					end)
+
+					local QueueList = shoptab:Add( "DListView" )
+					shoptab:AddSheet( "#EPS.Hands.Table", QueueList, "icon16/application_view_list.png" )
+					QueueList:DockMargin( 5, 0, 5, 5 )
+					QueueList:Dock( FILL )
+					QueueList:SetMultiSelect( false )
+					QueueList:AddColumn( "#EPS.Hands.Table.Model" )
+					QueueList:AddColumn( "#EPS.Workshop.Id" ):SetFixedWidth( 75 )
+
+
 
 				end
 
@@ -1350,27 +1408,27 @@ if CLIENT then
 					HistoryList:Clear()
 
 					local icon = HistoryIconLayout:Add( "SpawnIcon" )
-					icon:SetSize( 192, 192 )
+					icon:SetSize( 128, 128 )
 					icon:SetSpawnIcon( "icon16/add.png" )
 					icon:SetTooltip( "#EPS.Hands.UsePM" )
 					icon.DoClick = function()
 						if IsValid(RequestFrame) then 
 							RequestFrame:MakePopup()
-							return 
+							return
 						end
 						RequestFrame = vgui.Create( "DFrame" )
 						RequestFrame:SetSize( 300, 150 )
 						RequestFrame:Center()
-						RequestFrame:SetTitle( "Request an addon" ) 
-						RequestFrame:SetVisible( true ) 
-						RequestFrame:ShowCloseButton( true ) 
+						RequestFrame:SetTitle( "Request an addon" )
+						RequestFrame:SetVisible( true )
+						RequestFrame:ShowCloseButton( true )
 						RequestFrame:MakePopup()
 
 						local TextEntry = vgui.Create( "DTextEntry", RequestFrame ) -- create the form as a child of frame
 						TextEntry:Dock( TOP )
 						TextEntry:SetPlaceholderText( "Enter Workshop ID" )
 						TextEntry.OnEnter = function( self )
-							RequestAddon(self:GetValue())
+							RequestAddon(self:GetValue(), true)
 							RequestFrame:Close()
 						end
 					end
@@ -1393,11 +1451,50 @@ if CLIENT then
 
 					local exister = {}
 
-					for name, id in SortedPairs( History ) do
+					for k, v in SortedPairsByMemberValue( History, "time", true ) do
 
-						if IsInFilter( name ) then
+						if IsInFilter( v.title ) then
 
-							HistoryList:AddLine( name, id )
+							local icon = HistoryIconLayout:Add( "DImageButton" )
+							icon:SetSize( 128, 128 )
+
+							if ( not file.Exists( "cache/workshop/" .. v.previewid .. ".cache","GAME" ) ) then
+								steamworks.Download( v.previewid, false)
+							end
+							icon:SetMaterial( AddonMaterial("cache/workshop/" .. v.previewid .. ".cache","GAME") )
+							icon:SetTooltip( v.title )
+
+							icon.DoDoubleClick = function()
+								RequestAddon(k)
+							end
+
+							icon.DoRightClick = function()
+								local Menu = DermaMenu(false, icon)
+
+								-- Add a simple option.
+								Menu:AddOption( "Simple option" )
+
+								-- Simple option, but we're going to add an icon
+								local btnWithIcon = Menu:AddOption( "Option with icon" )
+								btnWithIcon:SetIcon( "icon16/bug.png" )	-- Icons are in materials/icon16 folder
+
+								-- Adds a simple line spacer
+								Menu:AddSpacer()
+
+								-- Add a submenu
+								local SubMenu = Menu:AddSubMenu( "A Sub Menu" )
+								SubMenu:AddOption( "Sub Option #1" ):SetIcon( "icon16/group.png" )
+
+								-- Add a submenu with icon
+								local Child, Parent = Menu:AddSubMenu( "A Sub Menu with Icon" )
+								Parent:SetIcon( "icon16/arrow_refresh.png" )
+								Child:AddOption( "Sub Option #2" ):SetIcon( "icon16/group.png" )
+
+								-- Open the menu
+								Menu:Open()
+							end
+
+							HistoryList:AddLine( v.title, k )
 
 						end
 
