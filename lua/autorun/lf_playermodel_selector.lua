@@ -5,6 +5,11 @@
 include("enhanced_playermodel_selector/default_playermodels.lua")
 include("enhanced_playermodel_selector/modelsearch.lua")
 
+local EPS_REQUEST = 0
+local EPS_APPROVE = 1
+local EPS_DENY = 2
+local EPS_REMOVE = 3
+
 hook.Remove( "Think", "garbage_day_ChooseHandsModel" ) -- Remove the hook, so we can actually change hands. Fix for https://steamcommunity.com/sharedfiles/filedetails/?id=3226024708
 
 local flag = { FCVAR_REPLICATED }
@@ -87,6 +92,14 @@ if SERVER then
 		end
 	end
 
+	local function AddNewModel(wsid)
+		if false then
+			--TODO
+		else
+			resource.AddWorkshop(wsid)
+		end
+		PrintMessage("LF_PMS: New Model/s have been added.")
+	end
 
 	local function UpdateQueue()
 		local queue = util.TableToJSON(list.Get("lf_playermodel_queue"))
@@ -105,11 +118,29 @@ if SERVER then
 	net.Receive("lf_playermodel_workshop", function( len, ply )
 		if ply:IsValid() and ply:IsPlayer() then
 			local wsid = net.ReadString()
-			if Whitelist[wsid] then
+			steamworks.FileInfo( wsid, function( result ) if result.installed then return end end)
+			local mode = net.ReadInt( 3 )
+			if mode == EPS_REQUEST then
+				if Whitelist[wsid] then
+					AddNewModel(wsid)
+					list.RemoveEntry( "lf_playermodel_queue", wsid )
+					return
+				end
+				if not list.Contains( "lf_playermodel_queue", wsid) then list.Add("lf_playermodel_queue", wsid ) end
+				UpdateQueue()
 				return
 			end
-			if not list.HasEntry("lf_playermodel_queue", wsid) then list.Add("lf_playermodel_queue", wsid) end
-			UpdateQueue()
+			if not ply:IsAdmin() then return end
+			if mode == EPS_APPROVE then
+				Whitelist[wsid] = true
+				file.Write( "lf_playermodel_selector/sv_whitelist.txt", util.TableToJSON( Whitelist, true ) )
+				list.RemoveEntry( "lf_playermodel_queue", wsid )
+				UpdateQueue()
+			elseif mode == EPS_DENY then
+				return
+			elseif mode == EPS_REMOVE then
+				return
+			end
 		end
 	end )
 
@@ -205,8 +236,14 @@ if SERVER then
 		end
 	end
 
+	local function IsInstalled(wsid)
+		steamworks.FileInfo(wsid, function( result )
+			return result.installed
+		end)
+		return false
+	end
 
-	local function UpdatePlayerModel( ply, dled )
+	local function UpdatePlayerModel( ply )
 		if Allowed( ply ) then
 
 			ply.lf_playermodel_spawned = true
@@ -216,25 +253,22 @@ if SERVER then
 			local mdlname = ply:GetInfo( "cl_playermodel" )
 			local mdlpath = player_manager.TranslatePlayerModel( mdlname )
 
-			--[[
-			if mdlpath == player_manager.TranslatePlayerModel( "kleiner" ) and mdlname ~= "kleiner" then
+			if mdlpath == player_manager.TranslatePlayerModel( "kleiner" ) and mdlname ~= "kleiner" and  ply:GetInfo( "cl_playermodelid " ) ~= "0" then
 				local wsid = ply:GetInfo( "cl_playermodelid " )
-				if dled then
-					if debugmode then print( "LF_PMS: Failed to find model from addon " .. tostring( wsid )) end
-				else
-					if debugmode then print( "LF_PMS: Missing model detected, attempting to obtain from workshop" ) end
-					if Whitelist[wsid] then
-						-- Download, Mount, Execute the autorun to add playermodel
-						-- TODO
-
+				if Whitelist[wsid] and not IsInstalled(wsid) then
+					AddNewModel(wsid)
+					hook.Add( "GameContentChanged", "EPS_NewModel_" .. ply:SteamID64(), function()
 						UpdatePlayerModel( ply, true )
-						return
-					end
-
-					if debugmode then print( "LF_PMS: Addon " .. tostring( wsid ) .. " not in whitelist, continuing using default model" ) end
+						hook.Remove( "GameContentChanged", "EPS_NewModel_" .. ply:SteamID64())
+					end)
+					return
 				end
+				--if debugmode then print( "LF_PMS: Failed to find model from addon " .. tostring( wsid )) end
+				--if debugmode then print( "LF_PMS: Missing model detected, attempting to obtain from workshop" ) end
+				--if debugmode then print( "LF_PMS: Addon " .. tostring( wsid ) .. " not in whitelist, continuing using default model" ) end
+
 			end
-			]]--
+
 
 			SetMDL( ply, mdlpath )
 			if debugmode then print( "LF_PMS: Set model to: " .. tostring( mdlname ) .. " - " .. tostring( mdlpath ) ) end
@@ -518,12 +552,16 @@ if CLIENT then
 	local playerhands = CreateConVar( "cl_playerhands", "", { FCVAR_ARCHIVE, FCVAR_USERINFO, FCVAR_DONTRECORD }, "The hands to use, if the model has any" )
 	local playerhandsbodygroups = CreateConVar( "cl_playerhandsbodygroups", "0", { FCVAR_ARCHIVE, FCVAR_USERINFO, FCVAR_DONTRECORD }, "The bodygroups on the hands to use, if the model has any" )
 	local playerhandsskin = CreateConVar( "cl_playerhandsskin", "0", { FCVAR_ARCHIVE, FCVAR_USERINFO, FCVAR_DONTRECORD }, "The skin on the hands to use, if the model has any" )
-	local playermodelid = CreateConVar( "cl_playermodelid", "0", { FCVAR_ARCHIVE, FCVAR_USERINFO, FCVAR_DONTRECORD, FCVAR_CHEAT }, "The workshop id associated with the model, if the model is part of an addon. This value should not be changed manually" )
+	local playermodelid = CreateConVar( "cl_playermodelid", "0", { FCVAR_ARCHIVE, FCVAR_USERINFO, FCVAR_DONTRECORD }, "The workshop id associated with the model, if the model is part of an addon. This value should not be changed manually" )
 
 	local function FindModelID(model)
 		local addon = SearchAddonsFrom(player_manager.TranslatePlayerModel(value_new)) or {["wsid"] = 0}
 		return addon.wsid
 	end
+
+	cvars.AddChangeCallback("cl_playermodel", function(convar_name, value_old, value_new)
+		playermodelid:SetString(FindModelID(value_new))
+	end)
 
 	local function KeyboardOn( pnl )
 		if ( IsValid( MainWindow ) and IsValid( pnl ) and pnl:HasParent( MainWindow ) ) then
@@ -574,7 +612,6 @@ if CLIENT then
 
 	local function RequestAddon( wsid, save )
 		steamworks.FileInfo( wsid, function( result )
-			PrintTable(result)
 			if result["title"] == "Hidden addon" or result["banned"] then
 				print("banned/hidden")
 				return
@@ -598,13 +635,15 @@ if CLIENT then
 				History[wsid] = { }
 				History[wsid].previewid = result.previewid
 				History[wsid].title = result["title"]
-				History[wsid].time = os.time()
 				History[wsid].size = result["size"]
 				file.Write( "lf_playermodel_selector/cl_history.txt", util.TableToJSON( History, true ) )
 				Menu.ShopPopulate()
 			end
+
+			print(wsid)
 			net.Start("lf_playermodel_workshop")
-				net.WriteString(wsid)
+				net.WriteString( wsid )
+				net.WriteInt( EPS_REQUEST, 3)
 				net.SendToServer()
 		end)
 	end
@@ -1377,7 +1416,27 @@ if CLIENT then
 				HistoryList:SetMultiSelect( false )
 				HistoryList:AddColumn( "#EPS.Hands.Table.Model" )
 				HistoryList:AddColumn( "#EPS.Workshop.Id" ):SetFixedWidth( 75 )
-
+				HistoryList.OnRowRightClick =  function( lst, index, pnl )
+					local options = DermaMenu(false, icon)
+					local id = pnl:GetColumnText( 2 )
+					options:AddOption( "Request Addon", function() RequestAddon(id) end):SetIcon( "icon16/add.png" )
+					if LocalPlayer():IsAdmin() then options:AddOption( "Force Add Addon", function() 
+						net.Start("lf_playermodel_workshop")
+							net.WriteString(id)
+							net.WriteInt(EPS_APPROVE, 3)
+							net.SendToServer()
+					end):SetIcon( "icon16/shield.png" ) end
+					options:AddSpacer()
+					options:AddOption( "Open Workshop Page", function() gui.OpenURL( "https://steamcommunity.com/sharedfiles/filedetails/?id=" .. id) end):SetIcon( "icon16/world.png" )
+					options:AddOption( "Copy to Clipboard", function() SetClipboardText( id ) end):SetIcon( "icon16/page.png" )
+					options:AddSpacer()
+					options:AddOption( "Remove from History", function()
+						History[id] = nil
+						Menu.ShopPopulate()
+						file.Write( "lf_playermodel_selector/cl_history.txt", util.TableToJSON(History, true) )
+					end):SetIcon( "icon16/delete.png" )
+					options:Open()
+				end
 				HistoryList.OnRowSelected = function( panel, rowIndex, row )
 					RequestAddon( row:GetValue( 2 ) )
 				end
@@ -1390,14 +1449,13 @@ if CLIENT then
 					end)
 
 					local QueueList = shoptab:Add( "DListView" )
-					shoptab:AddSheet( "#EPS.Hands.Table", QueueList, "icon16/application_view_list.png" )
+					shoptab:AddSheet( "#EPS.Hands.Table", QueueList, "icon16/script_edit.png" )
 					QueueList:DockMargin( 5, 0, 5, 5 )
 					QueueList:Dock( FILL )
 					QueueList:SetMultiSelect( false )
 					QueueList:AddColumn( "#EPS.Hands.Table.Model" )
 					QueueList:AddColumn( "#EPS.Workshop.Id" ):SetFixedWidth( 75 )
-
-
+					QueueList:AddColumn( "" ):SetFixedWidth( 16 )
 
 				end
 
@@ -1449,60 +1507,59 @@ if CLIENT then
 						end
 					end
 
-					local exister = {}
-
-					for k, v in SortedPairsByMemberValue( History, "time", true ) do
+					for id, v in SortedPairsByMemberValue( History, "time", true ) do
 
 						if IsInFilter( v.title ) then
-
 							local icon = HistoryIconLayout:Add( "DImageButton" )
 							icon:SetSize( 128, 128 )
-
-							if ( not file.Exists( "cache/workshop/" .. v.previewid .. ".cache","GAME" ) ) then
-								steamworks.Download( v.previewid, false)
+							if v.previewid then
+								if ( not file.Exists( "cache/workshop/" .. v.previewid .. ".cache","GAME" ) ) then
+									steamworks.Download( v.previewid, false)
+								end
+								icon:SetMaterial( AddonMaterial("cache/workshop/" .. v.previewid .. ".cache","GAME") )
 							end
-							icon:SetMaterial( AddonMaterial("cache/workshop/" .. v.previewid .. ".cache","GAME") )
 							icon:SetTooltip( v.title )
-
 							icon.DoDoubleClick = function()
-								RequestAddon(k)
+								RequestAddon(id)
 							end
 
 							icon.DoRightClick = function()
-								local Menu = DermaMenu(false, icon)
+								local options = DermaMenu(false, icon)
 
-								-- Add a simple option.
-								Menu:AddOption( "Simple option" )
-
-								-- Simple option, but we're going to add an icon
-								local btnWithIcon = Menu:AddOption( "Option with icon" )
-								btnWithIcon:SetIcon( "icon16/bug.png" )	-- Icons are in materials/icon16 folder
-
-								-- Adds a simple line spacer
-								Menu:AddSpacer()
-
-								-- Add a submenu
-								local SubMenu = Menu:AddSubMenu( "A Sub Menu" )
-								SubMenu:AddOption( "Sub Option #1" ):SetIcon( "icon16/group.png" )
-
-								-- Add a submenu with icon
-								local Child, Parent = Menu:AddSubMenu( "A Sub Menu with Icon" )
-								Parent:SetIcon( "icon16/arrow_refresh.png" )
-								Child:AddOption( "Sub Option #2" ):SetIcon( "icon16/group.png" )
-
-								-- Open the menu
-								Menu:Open()
+								options:AddOption( "Request Addon", function() RequestAddon(id) end):SetIcon( "icon16/add.png" )
+								if LocalPlayer():IsAdmin() then options:AddOption( "Force Add Addon", function()
+									net.Start("lf_playermodel_workshop")
+										net.WriteString(id)
+										net.WriteInt(EPS_APPROVE, 3)
+										net.SendToServer()
+								end):SetIcon( "icon16/shield.png" ) end
+								options:AddSpacer()
+								options:AddOption( "Open Workshop Page", function() gui.OpenURL( "https://steamcommunity.com/sharedfiles/filedetails/?id=" .. id) end):SetIcon( "icon16/world.png" )
+								options:AddOption( "Copy to Clipboard", function() SetClipboardText( id ) end):SetIcon( "icon16/page.png" )
+								options:AddSpacer()
+								options:AddOption( "Remove from History", function()
+									History[id] = nil
+									Menu.ShopPopulate()
+									file.Write( "lf_playermodel_selector/cl_history.txt", util.JSONToTable(History, true) )
+								end):SetIcon( "icon16/delete.png" )
+								options:Open()
 							end
 
-							HistoryList:AddLine( v.title, k )
-
+							HistoryList:AddLine( v.title, id )
 						end
-
 					end
 
 				end
 
 				Menu.ShopPopulate()
+
+						--[[
+						local testing = vgui.Create("DImage")
+							testing:SetImage("icon16/user.png")
+							testing:SetKeepAspect(true)
+							testing:SetSelectable(true)
+							testing:SetParent()
+							]]--
 
 	---------------------------------------------------------------------------------
 
@@ -2043,8 +2100,8 @@ if CLIENT then
 							</style>
 						</head>
 						<body>
-							<h1>]]..title..[[</h1> 
-							<h1>]]..intro..[[</h1>
+							<h1>]] .. title .. [[</h1> 
+							<h1>]] .. intro .. [[</h1>
 							<h2>Compatible Addons</h1>
 							<p>Enhanced Playermodel Selector provides additional functionality with those addons installed:
 							<ul>
@@ -2138,7 +2195,7 @@ if CLIENT then
 
 				if ( not handsTabActive ) then ModelPreview.Entity:SetBodygroup( pnl.typenum, math.Round( val ) ) end
 
-				local str = string.Explode( " ", Current.bodygroups )
+				local str = string.Explode( " ", Current.bodygroups or "" )
 				if ( #str < pnl.typenum + 1 ) then for i = 1, pnl.typenum + 1 do str[ i ] = str[ i ] or 0 end end
 				str[ pnl.typenum + 1 ] = math.Round( val )
 				Current.bodygroups = table.concat( str, " " )
@@ -2147,7 +2204,7 @@ if CLIENT then
 
 				if ( not handsTabActive ) then ModelPreview.Entity:SetFlexWeight( pnl.typenum, math.Round( val, 2 ) ) end
 
-				local str = string.Explode( " ", Current.flex )
+				local str = string.Explode( " ", Current.flex or "" )
 				if ( #str < pnl.typenum + 1 ) then for i = 1, pnl.typenum + 1 do str[ i ] = str[ i ] or 0 end end
 				str[ pnl.typenum + 1 ] = math.Round( val, 2 )
 				Current.flex = table.concat( str, " " )
@@ -2161,7 +2218,7 @@ if CLIENT then
 
 				if true or handsTabActive  then ModelPreview.EntityHands:SetBodygroup( pnl.typenum, math.Round( val ) ) end
 
-				local str = string.Explode( " ", Current.handbodygroups )
+				local str = string.Explode( " ", Current.handbodygroups or "" )
 				if ( #str < pnl.typenum + 1 ) then for i = 1, pnl.typenum + 1 do str[ i ] = str[ i ] or 0 end end
 				str[ pnl.typenum + 1 ] = math.Round( val )
 				Current.handgroups = table.concat( str, " " )
@@ -2203,7 +2260,7 @@ if CLIENT then
 				bgtab.Tab:SetVisible( true )
 			end
 
-			local groups = string.Explode( " ", Current.bodygroups )
+			local groups = string.Explode( " ", Current.bodygroups or "" )
 			for k = 0, ModelPreview.Entity:GetNumBodyGroups() - 1 do
 				if ( ModelPreview.Entity:GetBodygroupCount( k ) <= 1 ) then continue end
 
@@ -2281,7 +2338,7 @@ if CLIENT then
 					h__bgtab.Tab:SetVisible( true )
 				end
 
-				local groups = string.Explode( " ", Current.handgroups )
+				local groups = string.Explode( " ", Current.handgroups or "" )
 				for k = 0, ModelPreview.EntityHands:GetNumBodyGroups() - 1 do
 					if ( ModelPreview.EntityHands:GetBodygroupCount( k ) <= 1 ) then continue end
 
@@ -2335,7 +2392,7 @@ if CLIENT then
 				t:SetWrap( true )
 				flexcontrolspanel:AddItem( t )
 
-				local flexes = string.Explode( " ", Current.flex )
+				local flexes = string.Explode( " ", Current.flex or "" )
 				for k = 0, ModelPreview.Entity:GetFlexNum() - 1 do
 					if ( ModelPreview.Entity:GetFlexNum( k ) <= 1 ) then continue end
 
@@ -2383,7 +2440,6 @@ if CLIENT then
 			if true or ( Menu.IsHandsTabActive() ) then
 				ModelPreview:SetModel( handsAnimModel )
 				local model = Current.hand
-				print(model)
 
 				local default = false
 				if ( model == "" ) then
