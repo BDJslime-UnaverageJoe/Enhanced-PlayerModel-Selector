@@ -635,6 +635,7 @@ if CLIENT then
 				History[wsid] = { }
 				History[wsid].previewid = result.previewid
 				History[wsid].title = result["title"]
+				History[wsid].time = os.time()
 				History[wsid].size = result["size"]
 				file.Write( "lf_playermodel_selector/cl_history.txt", util.TableToJSON( History, true ) )
 				Menu.ShopPopulate()
