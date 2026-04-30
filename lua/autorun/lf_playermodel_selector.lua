@@ -37,7 +37,7 @@ local function CheckValidAddon(result)
 	elseif not string.find(result["tags"], "Addon") or not string.find(result["tags"], "Model") then
 		print("not an addon")
 		return
-	elseif not table.IsEmpty(result["content_descriptors"]) then
+	elseif CLIENT and not table.IsEmpty(result["content_descriptors"]) then --- Ulib is having a stroke serverside????
 		print("nsfw")
 		return
 	elseif not string.find(string.lower(result["title"]), "playermodel") and not string.find(string.lower(result["title"]), "pm") then
@@ -47,7 +47,7 @@ local function CheckValidAddon(result)
 		print("oversized")
 		result["oversize"] = true
 	end
-	return true
+	return result
 end
 
 if SERVER then
@@ -119,8 +119,8 @@ if SERVER then
 	local Queue = {}
 
 	local function AddNewModel(wsid)
-		if false then
-			--TODO
+		if true then
+			wshl(wsid, false, true, 2)
 		else
 			resource.AddWorkshop(wsid)
 		end
@@ -172,8 +172,8 @@ if SERVER then
 				UpdateQueue()
 
 			elseif mode == EPS_DENY then
-				return
-
+				Queue[wsid] = nil
+				UpdateQueue()
 			elseif mode == EPS_REMOVE then
 				return
 			end
@@ -286,7 +286,7 @@ if SERVER then
 				local wsid = ply:GetInfo( "cl_playermodelid" )
 				if Whitelist[wsid] then
 					steamworks.FileInfo(wsid, function( result )
-						if not result.installed then	
+						if not result.installed then
 							hook.Add( "GameContentChanged", "EPS_NewModel_" .. ply:SteamID64(), function()
 								UpdatePlayerModel( ply )
 								hook.Remove( "GameContentChanged", "EPS_NewModel_" .. ply:SteamID64())
@@ -294,8 +294,8 @@ if SERVER then
 							AddNewModel(wsid)
 						end
 					end)
-				end 
-				
+				end
+
 				--if debugmode then print( "LF_PMS: Failed to find model from addon " .. tostring( wsid )) end
 				--if debugmode then print( "LF_PMS: Missing model detected, attempting to obtain from workshop" ) end
 				--if debugmode then print( "LF_PMS: Addon " .. tostring( wsid ) .. " not in whitelist, continuing using default model" ) end
@@ -550,18 +550,17 @@ if CLIENT then
 	net.Receive("lf_playermodel_workshop", function()
 		Queue = { }
 		local message = util.JSONToTable(net.ReadString())
-		PrintTable(message)
 		for k, v in pairs(message) do
 			local ply = player.GetBySteamID64(v)
 			if ply then
-				steamworks.FileInfo( k, function( result ) 
+				steamworks.FileInfo( k, function( result )
+					result = CheckValidAddon( result ) or result
 					Queue[k] = result
-					PrintTable(Queue[k])
-					Queue[k].ply = v
+					Queue[k].ply = ply
+					Menu.QueuePopulate()
 				end)
 			end
 		end
-		Menu.QueuePopulate()
 	end)
 
 	local function RRRotateAroundPoint(pos, ang, point, offset_ang)
@@ -661,25 +660,33 @@ if CLIENT then
 	end
 	concommand.Add( "playermodel_loadfav", LoadFavorite )
 
-	local function RequestAddon( wsid )
-		steamworks.FileInfo( wsid, function( result )
-			if CheckValidAddon( result ) then
-				if not History[wsid] then
-					History[wsid] = { }
-					History[wsid].previewid = result.previewid
-					History[wsid].title = result["title"]
-					History[wsid].time = os.time()
-					History[wsid].size = result["size"]
-					file.Write( "lf_playermodel_selector/cl_history.txt", util.TableToJSON( History, true ) )
-					Menu.ShopPopulate()
-				end
+	local function RequestAddon( wsid, action )
+		action = action or EPS_REQUEST
+		if action == EPS_REQUEST then
+			steamworks.FileInfo( wsid, function( result )
+				if CheckValidAddon( result ) then
+					if not History[wsid] then
+						History[wsid] = { }
+						History[wsid].previewid = result.previewid
+						History[wsid].title = result["title"]
+						History[wsid].time = os.time()
+						History[wsid].size = result["size"]
+						file.Write( "lf_playermodel_selector/cl_history.txt", util.TableToJSON( History, true ) )
+						Menu.ShopPopulate()
+					end
 
-				net.Start("lf_playermodel_workshop")
-					net.WriteInt( EPS_REQUEST, 3)
-					net.WriteString( wsid )
-				net.SendToServer()
-			end
-		end)
+					net.Start("lf_playermodel_workshop")
+						net.WriteInt( EPS_REQUEST, 3)
+						net.WriteString( wsid )
+					net.SendToServer()
+				end
+			end)
+			return
+		end
+		net.Start("lf_playermodel_workshop")
+			net.WriteInt( action, 3)
+			net.WriteString( wsid )
+		net.SendToServer()
 	end
 
 	-- Horrible. I hate Garry's Mod
@@ -1443,10 +1450,7 @@ if CLIENT then
 					local id = pnl:GetColumnText( 2 )
 					options:AddOption( "Request Addon", function() RequestAddon(id) end):SetIcon( "icon16/add.png" )
 					if LocalPlayer():IsAdmin() then options:AddOption( "Force Add Addon", function() 
-						net.Start("lf_playermodel_workshop")
-							net.WriteInt( EPS_APPROVE, 3)
-							net.WriteString(id)
-							net.SendToServer()
+						RequestAddon( id, EPS_APPROVE)
 					end):SetIcon( "icon16/shield.png" ) end
 					options:AddSpacer()
 					options:AddOption( "Open Workshop Page", function() gui.OpenURL( "https://steamcommunity.com/sharedfiles/filedetails/?id=" .. id) end):SetIcon( "icon16/world.png" )
@@ -1459,7 +1463,7 @@ if CLIENT then
 					end):SetIcon( "icon16/delete.png" )
 					options:Open()
 				end
-				HistoryList.OnRowSelected = function( panel, rowIndex, row )
+				HistoryList.DoDoubleClick = function( panel, rowIndex, row )
 					RequestAddon( row:GetValue( 2 ) )
 				end
 
@@ -1471,20 +1475,51 @@ if CLIENT then
 					QueueList:Dock( FILL )
 					QueueList:SetMultiSelect( false )
 					QueueList:AddColumn( "#EPS.Hands.Table.Model" )
+					QueueList:AddColumn( "#EPS.Hands.Table.Model" ):SetFixedWidth( 100 )
 					QueueList:AddColumn( "#EPS.Workshop.Id" ):SetFixedWidth( 75 )
+					QueueList:AddColumn( "plyID" ):SetFixedWidth( 0 )
 					QueueList:AddColumn( "" ):SetFixedWidth( 16 )
+
+					QueueList.OnRowRightClick =  function( lst, index, pnl )
+					local options = DermaMenu(false, icon)
+					local id = pnl:GetColumnText( 3 )
+					options:AddOption( "Approve Addon", function() RequestAddon(id, EPS_APPROVE) end):SetIcon( "icon16/add.png" )
+					options:AddSpacer()
+					options:AddOption( "Open Workshop Page", function() gui.OpenURL( "https://steamcommunity.com/sharedfiles/filedetails/?id=" .. id) end):SetIcon( "icon16/world.png" )
+					options:AddOption( "Copy to Clipboard", function() SetClipboardText( id ) end):SetIcon( "icon16/page.png" )
+					options:AddOption( "Copy Player ID", function() SetClipboardText( pnl:GetColumnText( 4 ) ) end):SetIcon( "icon16/user.png" )
+					options:AddSpacer()
+					options:AddOption( "Deny Addon", function() RequestAddon(id, EPS_DENY) end):SetIcon( "icon16/delete.png" )
+					options:Open()
+				end
 
 					function Menu.QueuePopulate()
 						QueueList:Clear()
 
-						QueueList:AddLine( "k", "v" )
-
 						local ShopFilter = Menu.ShopFilter:GetValue() or nil
-						-- IsInFilter( v.title, ShopFilter )
-						--PrintTable(Queue)
 						for k, v in pairs(Queue) do
-							if true then
-								QueueList:AddLine( k, k )
+							if IsInFilter( v.title .. k .. v.ply:GetName(), ShopFilter ) then
+								local line = QueueList:AddLine( v.title, v.ply:GetName(), k, v.ply:SteamID64() )
+								local tooltip = v.title .. "\nAddon Size: " .. math.Round( v.size / 1000000, 2) .. " Mb\nRequested by " .. v.ply:GetName() .. " (" .. v.ply:SteamID64() .. ")"
+								local icon = vgui.Create("DImage")
+								icon:SetImage("icon16/tick.png")
+								icon:SetKeepAspect(true)
+								icon:SetSelectable(true)
+								icon:SetParent(line)
+								if v["unpm"] then 
+									tooltip = tooltip .. "\nAddon may not have valid playermodel."
+									icon:SetImage("icon16/error.png")
+								end
+								if v["oversize"] then 
+									tooltip = tooltip .. "\nAddon is oversized."
+									icon:SetImage("icon16/error.png")
+								end
+								if not table.IsEmpty(v["content_descriptors"]) then 
+									tooltip = tooltip .. "\nAddon is NSFW!!!"
+									icon:SetImage("icon16/cross.png")
+								end
+								line:SetTooltip( tooltip )
+								line:SetColumnText( 5, icon )
 							end
 						end
 					end
@@ -1528,14 +1563,17 @@ if CLIENT then
 
 					for id, v in SortedPairsByMemberValue( History, "time", true ) do
 
-						if IsInFilter( v.title, ShopFilter ) then
+						if IsInFilter( v.title .. id, ShopFilter ) then
 							local icon = HistoryIconLayout:Add( "DImageButton" )
 							icon:SetSize( 128, 128 )
 							if v.previewid then
 								if not file.Exists( "cache/workshop/" .. v.previewid .. ".cache","GAME" ) then
-									steamworks.Download( v.previewid, false, function() end)
+									steamworks.Download( v.previewid, false, function( path )
+										icon:SetMaterial( AddonMaterial( path ) )
+									end)
+								else
+									icon:SetMaterial( AddonMaterial("cache/workshop/" .. v.previewid .. ".cache","GAME") )
 								end
-								icon:SetMaterial( AddonMaterial("cache/workshop/" .. v.previewid .. ".cache","GAME") )
 							end
 							icon:SetTooltip( v.title )
 							icon.DoDoubleClick = function()
@@ -1545,14 +1583,9 @@ if CLIENT then
 							icon.DoRightClick = function()
 								local options = DermaMenu(false, icon)
 
-								options:AddOption( "Request Addon", function() RequestAddon(id) end):SetIcon( "icon16/add.png" )
+								options:AddOption( "Request Addon", function() RequestAddon( id ) end):SetIcon( "icon16/add.png" )
 								if LocalPlayer():IsAdmin() then 
-									options:AddOption( "Force Add Addon", function()
-									net.Start("lf_playermodel_workshop")
-										net.WriteInt( EPS_APPROVE, 3)
-										net.WriteString(id)
-										net.SendToServer()
-									end):SetIcon( "icon16/shield.png" )
+									options:AddOption( "Force Add Addon", function() RequestAddon( id, EPS_APPROVE) end):SetIcon( "icon16/shield.png" )
 								end
 								options:AddSpacer()
 								options:AddOption( "Open Workshop Page", function() gui.OpenURL( "https://steamcommunity.com/sharedfiles/filedetails/?id=" .. id) end):SetIcon( "icon16/world.png" )
@@ -1573,14 +1606,6 @@ if CLIENT then
 				end
 
 				Menu.ShopPopulate()
-
-						--[[
-						local testing = vgui.Create("DImage")
-							testing:SetImage("icon16/user.png")
-							testing:SetKeepAspect(true)
-							testing:SetSelectable(true)
-							testing:SetParent()
-							]]--
 
 	---------------------------------------------------------------------------------
 
