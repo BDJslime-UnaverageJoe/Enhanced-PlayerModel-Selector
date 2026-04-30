@@ -124,7 +124,7 @@ if SERVER then
 		else
 			resource.AddWorkshop(wsid)
 		end
-		PrintMessage("LF_PMS: New Model/s have been added.")
+		PrintMessage(HUD_PRINTTALK, "LF_PMS: New Model/s have been added.")
 	end
 
 	local function UpdateQueue(filter)
@@ -168,6 +168,7 @@ if SERVER then
 			if mode == EPS_APPROVE then
 				Whitelist[wsid] = true
 				file.Write( "lf_playermodel_selector/sv_whitelist.txt", util.TableToJSON( Whitelist, true ) )
+				AddNewModel(wsid)
 				Queue[wsid] = nil
 				UpdateQueue()
 
