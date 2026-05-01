@@ -60,6 +60,7 @@ if SERVER then
 	util.AddNetworkString("lf_playermodel_voxlist")
 	util.AddNetworkString("lf_playermodel_update")
 	util.AddNetworkString("lf_playermodel_workshop")
+	if not game.IsDedicated() then util.AddNetworkString("lf_playermodel_download") end
 
 	local SetMDL = FindMetaTable("Entity").SetModel
 
@@ -119,7 +120,7 @@ if SERVER then
 	local Queue = {}
 
 	local function CheckSteamworks()
-		if steamworks and steamworks.DownloadUGC then
+		if steamworks and steamworks.DownloadUGC or not game.IsDedicated() then
 			return true
 		end
 
@@ -141,9 +142,15 @@ if SERVER then
 				PrintMessage(HUD_PRINTTALK, "LF_PMS: Workshop capabilties not detected, new model will not be added.")
 				return 
 			end
-			steamworks.DownloadUGC( wsid, function( path )
-				game.MountGMA( path )
-			end)
+			if game.IsDedicated() then
+				steamworks.DownloadUGC( wsid, function( path )
+					game.MountGMA( path )
+				end)
+			else
+				net.Start("lf_playermodel_download")
+					net.WriteString(wsid)
+					net.Send(Entity(1))
+			end
 			resource.AddWorkshop(wsid)
 			PrintMessage(HUD_PRINTTALK, "LF_PMS: New Model/s will be added on map change.")
 		end
@@ -529,7 +536,7 @@ end
 if CLIENT then
 
 
-	local Version = "5.0"
+	local Version = "5.0 Experimental"
 	local Menu = { }
 	local MainWindow
 	local default_animations = { "idle_all_01", "menu_walk", "menu_combine", "pose_standing_02", "pose_standing_03", "idle_fist", "menu_gman", "idle_all_scared", "menu_zombie_01", "idle_magic", "walk_ar2" }
@@ -583,6 +590,14 @@ if CLIENT then
 					Menu.QueuePopulate()
 				end)
 			end
+		end
+	end)
+
+	net.Receive("lf_playermodel_download", function()
+		if LocalPlayer():IsListenServerHost() then
+			steamworks.DownloadUGC( net.ReadString(), function( path )
+				game.MountGMA( path )
+			end)
 		end
 	end)
 
@@ -1502,7 +1517,7 @@ if CLIENT then
 					QueueList:Dock( FILL )
 					QueueList:SetMultiSelect( false )
 					QueueList:AddColumn( "#EPS.Hands.Table.Model" )
-					QueueList:AddColumn( "#EPS.Hands.Table.Model" ):SetFixedWidth( 100 )
+					QueueList:AddColumn( "Player" ):SetFixedWidth( 100 )
 					QueueList:AddColumn( "#EPS.Workshop.Id" ):SetFixedWidth( 75 )
 					QueueList:AddColumn( "plyID" ):SetFixedWidth( 0 )
 					QueueList:AddColumn( "" ):SetFixedWidth( 16 )
