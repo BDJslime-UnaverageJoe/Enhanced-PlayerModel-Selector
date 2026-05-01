@@ -25,14 +25,11 @@ function SearchAddonsFrom(target)
         end
     end
 
-    for _, addon in pairs( engine.GetAddons() ) do
-        if result == addon.title then
-            return addon
-        end
-    end
+    return result
+
 end
 
-local function AddRecursive(addon, folder, wildcard)
+local function AddRecursive(addon, folder, wildcard, wsid)
     local files, folders = file.Find( folder .. "*", addon )
     if ( not files ) then MsgN( "Warning! Not opening '" .. folder .. "' because we cannot search in it!"  ) return false end
 
@@ -44,14 +41,14 @@ local function AddRecursive(addon, folder, wildcard)
             // Remove the .lua extension
             found = string.gsub(found, ".lua", "")
             found = string.lower(found)
-            StonemanAddonSearcherCache[found] = addon
+            StonemanAddonSearcherCache[found] = wsid
 
             continue
         else
             if ( not string.EndsWith( v, ".mdl" ) ) then continue end
             local found = folder .. v
             found = string.lower(found)
-            StonemanAddonSearcherCache[found] = addon
+            StonemanAddonSearcherCache[found] = wsid
 
             continue
         end
@@ -61,30 +58,39 @@ local function AddRecursive(addon, folder, wildcard)
         if wildcard == "weapon" or wildcard == "entity" then
             local found = v
             found = string.lower(found)
-            StonemanAddonSearcherCache[found] = addon
+            StonemanAddonSearcherCache[found] = wsid
 
             continue
         else
-            AddRecursive( addon, folder .. v .. "/", wildcard )
+            AddRecursive( addon, folder .. v .. "/", wildcard, wsid )
         end
     end
 end
 
 local function BeginSearching()
     // Put all models into a table. Every last one.
-    for _, addon in SortedPairsByMemberValue( engine.GetAddons(), "title" ) do
-        if addon.mounted and addon.downloaded then
-            AddRecursive(addon.title, "models/", "model")
+    if WSHL then
+        for id, path in pairs(WSHL.Addons.Path) do
+            AddRecursive(path, "models/", "model", id)
+        end   
+        return
+    end
+    print("WSHL not found")
+    for _, addon in ipairs( engine.GetAddons() ) do
+        if addon.mounted then
+            AddRecursive(addon.title, "models/", "model", addon.wsid)
         end
     end
 end
 
 hook.Add("InitPostEntity", "StonemanAddonSearcher:Cache", function()
-    StonemanAddonSearcherCache = {}
-    BeginSearching()
+    timer.Simple(5, function()
+        StonemanAddonSearcherCache = {}
+        BeginSearching()
+    end)
 end)
 
-hook.Add("GameContentChanged", "stoneman_search_addons_reload", function()
+hook.Add("WSHL.BundleInitialized", "stoneman_search_addons_reload", function()
     StonemanAddonSearcherCache = {}
     BeginSearching()
 end)

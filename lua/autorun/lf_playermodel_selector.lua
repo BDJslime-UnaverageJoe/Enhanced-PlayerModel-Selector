@@ -118,13 +118,35 @@ if SERVER then
 
 	local Queue = {}
 
-	local function AddNewModel(wsid)
-		if true then
-			wshl(wsid, false, true, 2)
-		else
-			resource.AddWorkshop(wsid)
+	local function CheckSteamworks()
+		if steamworks and steamworks.DownloadUGC then
+			return true
 		end
-		PrintMessage(HUD_PRINTTALK, "LF_PMS: New Model/s have been added.")
+
+		if not util.IsBinaryModuleInstalled("workshop") then
+			return false
+		end
+
+		require("workshop")
+
+		return steamworks ~= nil
+	end
+
+	local function AddNewModel(wsid)
+		if WSHL then
+			wshl(wsid, false, true, 2)
+			PrintMessage(HUD_PRINTTALK, "LF_PMS: New Model/s have been added.")
+		else
+			if not CheckSteamworks() then
+				PrintMessage(HUD_PRINTTALK, "LF_PMS: Workshop capabilties not detected, new model will not be added.")
+				return 
+			end
+			steamworks.DownloadUGC( wsid, function( path )
+				game.MountGMA( path )
+			end)
+			resource.AddWorkshop(wsid)
+			PrintMessage(HUD_PRINTTALK, "LF_PMS: New Model/s will be added on map change.")
+		end
 	end
 
 	local function UpdateQueue(filter)
@@ -288,11 +310,11 @@ if SERVER then
 				if Whitelist[wsid] then
 					steamworks.FileInfo(wsid, function( result )
 						if not result.installed then
-							hook.Add( "GameContentChanged", "EPS_NewModel_" .. ply:SteamID64(), function()
-								UpdatePlayerModel( ply )
-								hook.Remove( "GameContentChanged", "EPS_NewModel_" .. ply:SteamID64())
-							end)
 							AddNewModel(wsid)
+							timer.Simple(3, function()
+								UpdatePlayerModel( ply )
+							end)
+							return
 						end
 					end)
 				end
@@ -606,8 +628,11 @@ if CLIENT then
 	local playermodelid = CreateConVar( "cl_playermodelid", "0", { FCVAR_ARCHIVE, FCVAR_USERINFO, FCVAR_DONTRECORD }, "The workshop id associated with the model, if the model is part of an addon. This value should not be changed manually" )
 
 	local function FindModelID(model)
-		local addon = SearchAddonsFrom(player_manager.TranslatePlayerModel(value_new)) or {["wsid"] = 0}
-		return addon.wsid
+		-- Handle default model replacements
+		--if DefaultPlayerModels[model] then 
+		--	return ""
+		--end
+		return SearchAddonsFrom(player_manager.TranslatePlayerModel(model)) or 0
 	end
 
 	cvars.AddChangeCallback("cl_playermodel", function(convar_name, value_old, value_new)
@@ -688,6 +713,7 @@ if CLIENT then
 			net.WriteInt( action, 3)
 			net.WriteString( wsid )
 		net.SendToServer()
+		if Menu.QueuePopulate then Menu.QueuePopulate() end
 	end
 
 	-- Horrible. I hate Garry's Mod
@@ -1300,7 +1326,7 @@ if CLIENT then
 				Favorites[name].hand = Current.hand
 				Favorites[name].handgroups = Current.handgroups
 				Favorites[name].handskin = Current.handskin
-				Favorites[name].wsid = Current.modelid or FindModelID(Current.model) or 0
+				Favorites[name].wsid = FindModelID(Current.model) or Current.modelid or ""
 				file.Write( "lf_playermodel_selector/cl_favorites.txt", util.TableToJSON( Favorites, true ) )
 				Menu.FavPopulate()
 			end
@@ -1471,7 +1497,7 @@ if CLIENT then
 				if LocalPlayer():IsAdmin() then
 
 					local QueueList = shoptab:Add( "DListView" )
-					shoptab:AddSheet( "#EPS.Hands.Table", QueueList, "icon16/script_edit.png" )
+					shoptab:AddSheet( "Requests", QueueList, "icon16/script_edit.png" )
 					QueueList:DockMargin( 5, 0, 5, 5 )
 					QueueList:Dock( FILL )
 					QueueList:SetMultiSelect( false )
