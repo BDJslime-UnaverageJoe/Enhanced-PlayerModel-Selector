@@ -5,6 +5,8 @@
 include("enhanced_playermodel_selector/default_playermodels.lua")
 include("enhanced_playermodel_selector/modelsearch.lua")
 
+EPS_VERSION = "5.0.1 Experimental"
+
 local EPS_REQUEST = 0
 local EPS_APPROVE = 1
 local EPS_DENY = 2
@@ -541,8 +543,6 @@ end
 
 if CLIENT then
 
-
-	local Version = "5.0 Experimental"
 	local Menu = { }
 	local MainWindow
 	local default_animations = { "idle_all_01", "menu_walk", "menu_combine", "pose_standing_02", "pose_standing_03", "idle_fist", "menu_gman", "idle_all_scared", "menu_zombie_01", "idle_magic", "walk_ar2" }
@@ -782,7 +782,7 @@ if CLIENT then
 		MainWindow = vgui.Create( "DFrame" )
 		local fw, fh = math.min( ScrW() - 16, 960 ), math.min( ScrH() - 16, 700 )
 		MainWindow:SetSize( fw, fh )
-		MainWindow:SetTitle( string.format(language.GetPhrase("EPS.Title"),Version) )
+		MainWindow:SetTitle( string.format(language.GetPhrase("EPS.Title"),EPS_VERSION) )
 		MainWindow:SetVisible( true )
 		MainWindow:SetDraggable( true )
 		MainWindow:SetScreenLock( false )
@@ -2209,7 +2209,7 @@ if CLIENT then
 				t:AddFunction( "url", "open", function( str ) gui.OpenURL( str ) end )
 				t:AddFunction( "url", "copy", function( str ) SetClipboardText( str ) end )
 
-				local title = string.format(language.GetPhrase("EPS.Title"),Version)
+				local title = string.format(language.GetPhrase("EPS.Title"),EPS_VERSION)
 
 				local intro = [[Created by: <a href="javascript:url.open( 'https://steamcommunity.com/profiles/76561198105279898' )" oncontextmenu="url.copy( 'https://steamcommunity.com/profiles/76561198105279898' )">LibertyForce</a>.<br>
 				Viewmodel Support: <a href="javascript:url.open( 'https://steamcommunity.com/profiles/76561198254662493' )" oncontextmenu="url.copy( 'https://steamcommunity.com/profiles/76561198254662493' )">Fesiug</a><br>
