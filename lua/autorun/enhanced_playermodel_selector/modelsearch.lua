@@ -69,13 +69,13 @@ end
 
 local function BeginSearching()
     // Put all models into a table. Every last one.
-    if WSHL then
+    if WSHL and WSHL.Addons then
         for id, path in pairs(WSHL.Addons.Path) do
             AddRecursive(path, "models/", "model", id)
         end   
         return
     end
-    print("WSHL not found")
+    print("WSHL cache not found")
     for _, addon in ipairs( engine.GetAddons() ) do
         if addon.mounted then
             AddRecursive(addon.title, "models/", "model", addon.wsid)
