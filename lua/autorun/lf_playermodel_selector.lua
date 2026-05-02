@@ -322,7 +322,7 @@ if SERVER then
 
 			if mdlpath == player_manager.TranslatePlayerModel( "kleiner" ) and mdlname ~= "kleiner" and  ply:GetInfo( "cl_playermodelid " ) ~= "0" then
 				local wsid = ply:GetInfo( "cl_playermodelid" )
-				if Whitelist[wsid] then
+				if Whitelist[wsid] or not convars["sv_playermodel_selector_workshop_queue"]:GetBool() then
 					steamworks.FileInfo(wsid, function( result )
 						if not result.installed then
 							AddNewModel(wsid)
