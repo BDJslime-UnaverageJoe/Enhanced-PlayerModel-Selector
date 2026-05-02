@@ -5,7 +5,7 @@
 include("enhanced_playermodel_selector/default_playermodels.lua")
 include("enhanced_playermodel_selector/modelsearch.lua")
 
-EPS_VERSION = "5.0.2 Experimental"
+EPS_VERSION = "5.0.3 Experimental"
 
 local EPS_REQUEST = 0
 local EPS_APPROVE = 1
@@ -324,18 +324,15 @@ if SERVER then
 			local mdlpath = player_manager.TranslatePlayerModel( mdlname )
 
 			if mdlpath == player_manager.TranslatePlayerModel( "kleiner" ) and mdlname ~= "kleiner" then
-
-				timer.Simple(0.5, function()
-					if ply:GetInfo( "cl_playermodelid " ) ~= "0" and not added then
-						local wsid = ply:GetInfo( "cl_playermodelid" )
-						if Whitelist[wsid] or not convars["sv_playermodel_selector_workshop_queue"]:GetBool() then
-							AddNewModel(wsid, ply)
-							timer.Simple(3, function()
-								UpdatePlayerModel( ply, true )
-							end)
-						end
+				if ply:GetInfo( "cl_playermodelid " ) ~= "0" and not added then
+					local wsid = ply:GetInfo( "cl_playermodelid" )
+					if Whitelist[wsid] or not convars["sv_playermodel_selector_workshop_queue"]:GetBool() then
+						AddNewModel(wsid, ply)
+						timer.Simple(1, function()
+							UpdatePlayerModel( ply, true )
+						end)
 					end
-				end)
+				end
 
 				--if debugmode then print( "LF_PMS: Failed to find model from addon " .. tostring( wsid )) end
 				--if debugmode then print( "LF_PMS: Missing model detected, attempting to obtain from workshop" ) end
@@ -686,8 +683,8 @@ if CLIENT then
 		playerhands:SetString( Current.hand )
 		playerhandsbodygroups:SetString( Current.handgroups )
 		playerhandsskin:SetInt( Current.handskin )
-		playermodelid:SetString( Current.modelid or "0" )
 		timer.Simple(0, function ()
+			playermodelid:SetString( Current.modelid )
 			if LocalPlayer():IsAdmin() or GetConVar( "sv_playermodel_selector_instantly" ):GetBool() then
 				net.Start("lf_playermodel_update")
 				net.SendToServer()
@@ -767,6 +764,18 @@ if CLIENT then
 				end
 			end
 			return true
+		end
+	end
+
+	function UrlToWorkshopID(url,numok) -- Thanks Outfitter
+		if not url or not isstring(url) then return end
+		
+
+		local ret = url:match'://steamcommunity.com/sharedfiles/filedetails/.*[%?%&]id=(%d+)' or url:match'://steamcommunity.com/workshop/filedetails/.*[%?%&]id=(%d+)'
+		if ret then return ret end
+		if numok and tonumber(url:Trim()) then
+			local num = tonumber(url:Trim())
+			if num and num>1337 then return num end
 		end
 	end
 
@@ -1539,7 +1548,9 @@ if CLIENT then
 							TextEntry:Dock( TOP )
 							TextEntry:SetPlaceholderText( "Enter Workshop ID" )
 							TextEntry.OnEnter = function( self )
-								RequestAddon(self:GetValue())
+								local input = self:GetValue()
+								if string.find(input, "?id=") then input = UrlToWorkshopID(input) end
+								RequestAddon(input)
 								RequestFrame:Close()
 							end
 						end
@@ -2661,7 +2672,7 @@ if CLIENT then
 
 		end
 
-		net.Receive("lf_playermodel_cvar_change", function( len )
+		hook.Add("WSHL.BundleInitialized", "EPS_Refresh", function()
 			Menu.UpdateFromConvars()
 		end)
 

@@ -3,7 +3,7 @@ AddCSLuaFile()
 // It seems like we have to do it for each fucking category for fuck sake
 function SearchAddonsFrom(target)
     target = string.lower(target)
-    local result = StonemanAddonSearcherCache[target]
+    local result = ModelCache[target]
 
     // If you can't find it, but it's an entity, search for model instead!
     if result == nil then
@@ -12,7 +12,7 @@ function SearchAddonsFrom(target)
             local model = npc.Model
             if model then model = string.lower( model ) end
 
-            result = StonemanAddonSearcherCache[model]
+            result = ModelCache[model]
         end
 
         if result == nil then
@@ -21,7 +21,7 @@ function SearchAddonsFrom(target)
             local model = vehicle.Model
             if model then model = string.lower( model ) end
 
-            result = StonemanAddonSearcherCache[model]
+            result = ModelCache[model]
         end
     end
 
@@ -41,14 +41,14 @@ local function AddRecursive(addon, folder, wildcard, wsid)
             // Remove the .lua extension
             found = string.gsub(found, ".lua", "")
             found = string.lower(found)
-            StonemanAddonSearcherCache[found] = wsid
+            ModelCache[found] = wsid
 
             continue
         else
             if ( not string.EndsWith( v, ".mdl" ) ) then continue end
             local found = folder .. v
             found = string.lower(found)
-            StonemanAddonSearcherCache[found] = wsid
+            ModelCache[found] = wsid
 
             continue
         end
@@ -58,7 +58,7 @@ local function AddRecursive(addon, folder, wildcard, wsid)
         if wildcard == "weapon" or wildcard == "entity" then
             local found = v
             found = string.lower(found)
-            StonemanAddonSearcherCache[found] = wsid
+            ModelCache[found] = wsid
 
             continue
         else
@@ -85,12 +85,12 @@ end
 
 hook.Add("InitPostEntity", "StonemanAddonSearcher:Cache", function()
     timer.Simple(5, function()
-        StonemanAddonSearcherCache = {}
+        ModelCache = {}
         BeginSearching()
     end)
 end)
 
 hook.Add("WSHL.BundleInitialized", "stoneman_search_addons_reload", function()
-    StonemanAddonSearcherCache = {}
+    ModelCache = {}
     BeginSearching()
 end)
