@@ -5,7 +5,7 @@
 include("enhanced_playermodel_selector/default_playermodels.lua")
 include("enhanced_playermodel_selector/modelsearch.lua")
 
-EPS_VERSION = "5.0.1 Experimental"
+EPS_VERSION = "5.0.2 Experimental"
 
 local EPS_REQUEST = 0
 local EPS_APPROVE = 1
@@ -139,7 +139,7 @@ if SERVER then
 		return steamworks ~= nil
 	end
 
-	local function AddNewModel(wsid)
+	local function AddNewModel(wsid, ply)
 		if not convars["sv_playermodel_selector_workshop_enabled"]:GetBool() then return end
 		if WSHL and convars["sv_playermodel_selector_workshop_load"]:GetBool() then
 			wshl(wsid, false, true, 2)
@@ -161,6 +161,8 @@ if SERVER then
 			resource.AddWorkshop(wsid)
 			PrintMessage(HUD_PRINTTALK, "LF_PMS: New Model/s will be added on map change.")
 		end
+		net.Start("lf_playermodel_cvar_change")
+			net.Send(ply)
 	end
 
 	local function UpdateQueue(filter)
@@ -189,7 +191,7 @@ if SERVER then
 
 			if mode == EPS_REQUEST then
 				if Whitelist[wsid] or not convars["sv_playermodel_selector_workshop_queue"]:GetBool() then
-					AddNewModel(wsid)
+					AddNewModel(wsid, ply)
 					return
 				end
 				steamworks.FileInfo( wsid, function( result )
@@ -205,7 +207,7 @@ if SERVER then
 			if mode == EPS_APPROVE then
 				Whitelist[wsid] = true
 				file.Write( "lf_playermodel_selector/sv_whitelist.txt", util.TableToJSON( Whitelist, true ) )
-				AddNewModel(wsid)
+				AddNewModel(wsid, ply)
 				Queue[wsid] = nil
 				UpdateQueue()
 
@@ -310,7 +312,8 @@ if SERVER then
 		end
 	end
 
-	local function UpdatePlayerModel( ply )
+	local function UpdatePlayerModel( ply, added )
+		added = added or false
 		if Allowed( ply ) then
 
 			ply.lf_playermodel_spawned = true
@@ -320,19 +323,19 @@ if SERVER then
 			local mdlname = ply:GetInfo( "cl_playermodel" )
 			local mdlpath = player_manager.TranslatePlayerModel( mdlname )
 
-			if mdlpath == player_manager.TranslatePlayerModel( "kleiner" ) and mdlname ~= "kleiner" and  ply:GetInfo( "cl_playermodelid " ) ~= "0" then
-				local wsid = ply:GetInfo( "cl_playermodelid" )
-				if Whitelist[wsid] or not convars["sv_playermodel_selector_workshop_queue"]:GetBool() then
-					steamworks.FileInfo(wsid, function( result )
-						if not result.installed then
-							AddNewModel(wsid)
+			if mdlpath == player_manager.TranslatePlayerModel( "kleiner" ) and mdlname ~= "kleiner" then
+
+				timer.Simple(0.5, function()
+					if ply:GetInfo( "cl_playermodelid " ) ~= "0" and not added then
+						local wsid = ply:GetInfo( "cl_playermodelid" )
+						if Whitelist[wsid] or not convars["sv_playermodel_selector_workshop_queue"]:GetBool() then
+							AddNewModel(wsid, ply)
 							timer.Simple(3, function()
-								UpdatePlayerModel( ply )
+								UpdatePlayerModel( ply, true )
 							end)
-							return
 						end
-					end)
-				end
+					end
+				end)
 
 				--if debugmode then print( "LF_PMS: Failed to find model from addon " .. tostring( wsid )) end
 				--if debugmode then print( "LF_PMS: Missing model detected, attempting to obtain from workshop" ) end
@@ -2657,6 +2660,10 @@ if CLIENT then
 			end
 
 		end
+
+		net.Receive("lf_playermodel_cvar_change", function( len )
+			Menu.UpdateFromConvars()
+		end)
 
 		function Menu.UpdateFromControls()
 
