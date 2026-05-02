@@ -1,6 +1,6 @@
 -- Enhanced PlayerModel Selector
 -- Upgraded code by LibertyForce https://steamcommunity.com/id/libertyforce
--- Based on: https://github.com/garrynewman/garrysmod/blob/1a2c317eeeef691e923453018236cf9f66ee74b4/garrysmod/gamemodes/sandbox/gamemode/editor_player.lua
+-- Based on: https://github.com/Facepunch/garrysmod/blob/master/garrysmod/gamemodes/sandbox/gamemode/editor_player.lua
 
 include("enhanced_playermodel_selector/default_playermodels.lua")
 include("enhanced_playermodel_selector/modelsearch.lua")
@@ -13,19 +13,17 @@ local EPS_INFO = -1
 
 hook.Remove( "Think", "garbage_day_ChooseHandsModel" ) -- Remove the hook, so we can actually change hands. Fix for https://steamcommunity.com/sharedfiles/filedetails/?id=3226024708
 
-local flag = { FCVAR_REPLICATED }
-if SERVER then flag = { FCVAR_ARCHIVE, FCVAR_REPLICATED } end
-local convars = { }
-convars["sv_playermodel_selector_force"]		= 1
-convars["sv_playermodel_selector_gamemodes"]	= 1
-convars["sv_playermodel_selector_instantly"]	= 1
-convars["sv_playermodel_selector_flexes"]		= 0
-convars["sv_playermodel_selector_limit"]		= 1
-convars["sv_playermodel_selector_debug"]		= 0
-for cvar, def in pairs( convars ) do
-	CreateConVar( cvar,	def, flag )
-end
-flag = nil
+local flags = { FCVAR_ARCHIVE, FCVAR_REPLICATED }
+local forced = CreateConVar("sv_playermodel_selector_force", 1, flags)
+local gmblacklist = CreateConVar("sv_playermodel_selector_gamemodes", 1, flags)
+local instant = CreateConVar("sv_playermodel_selector_instantly", 1, flags)
+local flexEnabled = CreateConVar("sv_playermodel_selector_flexes", 0, flags)
+local applyDelay = CreateConVar("sv_playermodel_selector_limit", 1, flags)
+local debug = CreateConVar("sv_playermodel_selector_debug", 0, flags)
+local workshop_enabled = CreateConVar("sv_playermodel_selector_workshop_enabled", 1, flags)
+local workshop_queue = CreateConVar("sv_playermodel_selector_workshop_queue", game.IsDedicated(), flags)
+local workshop_nsfw = CreateConVar("sv_playermodel_selector_workshop_descriptors", 0, flags)
+local workshop_load = CreateConVar("sv_playermodel_selector_workshop_load", 1, flags)
 
 local function CheckValidAddon(result)
 	if SERVER and result.installed then
@@ -37,7 +35,7 @@ local function CheckValidAddon(result)
 	elseif not string.find(result["tags"], "Addon") or not string.find(result["tags"], "Model") then
 		print("not an addon")
 		return
-	elseif CLIENT and not table.IsEmpty(result["content_descriptors"]) then --- Ulib is having a stroke serverside????
+	elseif CLIENT and (not table.IsEmpty(result["content_descriptors"]) and not workshop_nsfw:GetBool()) then --- Ulib is having a stroke serverside????
 		print("nsfw")
 		return
 	elseif not string.find(string.lower(result["title"]), "playermodel") and not string.find(string.lower(result["title"]), "pm") then
@@ -134,7 +132,8 @@ if SERVER then
 	end
 
 	local function AddNewModel(wsid)
-		if WSHL then
+		if not workshop_enabled:GetBool() then return end
+		if WSHL and workshop_load:GetBool() then
 			wshl(wsid, false, true, 2)
 			PrintMessage(HUD_PRINTTALK, "LF_PMS: New Model/s have been added.")
 		else
@@ -170,6 +169,7 @@ if SERVER then
 	end
 
 	net.Receive("lf_playermodel_workshop", function( len, ply )
+		if not workshop_enabled:GetBool() then return end
 		if ply:IsValid() and ply:IsPlayer() then
 			local mode = net.ReadInt( 3 )
 
@@ -180,7 +180,7 @@ if SERVER then
 			local wsid = net.ReadString()
 
 			if mode == EPS_REQUEST then
-				if Whitelist[wsid] then
+				if Whitelist[wsid] or not workshop_queue:GetBool() then
 					AddNewModel(wsid)
 					return
 				end
@@ -443,7 +443,7 @@ if SERVER then
 
 	hook.Add( "PlayerSpawn", "lf_playermodel_force_hook1", function( ply )
 		if GetConVar( "sv_playermodel_selector_force" ):GetBool() and tobool( ply:GetInfoNum( "cl_playermodel_selector_force", 0 ) ) then
-			--UpdatePlayerModel( ply )
+			UpdatePlayerModel( ply )
 			ply.lf_playermodel_spawned = nil
 		end
 	end )
@@ -626,21 +626,23 @@ if CLIENT then
 	CreateClientConVar( "cl_playermodel_selector_bgcolor_trans", "1", true, true )
 	CreateClientConVar( "cl_playermodel_selector_ignorehands", "1", true, true )
 
+	local flags = { FCVAR_ARCHIVE, FCVAR_USERINFO, FCVAR_DONTRECORD }
+
 	--Engine (Can't use Lua functions)
 	local playermodel = GetConVar( "cl_playermodel" )
 
 	--Sandbox
-	local playercolor = CreateConVar( "cl_playercolor", "0.24 0.34 0.41", { FCVAR_ARCHIVE, FCVAR_USERINFO, FCVAR_DONTRECORD }, "The value is a Vector - so between 0-1 - not between 0-255" )
-	local weaponcolor = CreateConVar( "cl_weaponcolor", "0.30 1.80 2.10", { FCVAR_ARCHIVE, FCVAR_USERINFO, FCVAR_DONTRECORD }, "The value is a Vector - so between 0-1 - not between 0-255" )
-	local playerskin = CreateConVar( "cl_playerskin", "0", { FCVAR_ARCHIVE, FCVAR_USERINFO, FCVAR_DONTRECORD }, "The skin to use, if the model has any" )
-	local playerbodygroups = CreateConVar( "cl_playerbodygroups", "0", { FCVAR_ARCHIVE, FCVAR_USERINFO, FCVAR_DONTRECORD }, "The bodygroups to use, if the model has any" )
+	local playercolor = CreateConVar( "cl_playercolor", "0.24 0.34 0.41", flags, "The value is a Vector - so between 0-1 - not between 0-255" )
+	local weaponcolor = CreateConVar( "cl_weaponcolor", "0.30 1.80 2.10", flags, "The value is a Vector - so between 0-1 - not between 0-255" )
+	local playerskin = CreateConVar( "cl_playerskin", "0", flags, "The skin to use, if the model has any" )
+	local playerbodygroups = CreateConVar( "cl_playerbodygroups", "0", flags, "The bodygroups to use, if the model has any" )
 
 	--Custom Cvars
-	local playerflexes = CreateConVar( "cl_playerflexes", "0", { FCVAR_ARCHIVE, FCVAR_USERINFO, FCVAR_DONTRECORD }, "The flexes to use, if the model has any" )
-	local playerhands = CreateConVar( "cl_playerhands", "", { FCVAR_ARCHIVE, FCVAR_USERINFO, FCVAR_DONTRECORD }, "The hands to use, if the model has any" )
-	local playerhandsbodygroups = CreateConVar( "cl_playerhandsbodygroups", "0", { FCVAR_ARCHIVE, FCVAR_USERINFO, FCVAR_DONTRECORD }, "The bodygroups on the hands to use, if the model has any" )
-	local playerhandsskin = CreateConVar( "cl_playerhandsskin", "0", { FCVAR_ARCHIVE, FCVAR_USERINFO, FCVAR_DONTRECORD }, "The skin on the hands to use, if the model has any" )
-	local playermodelid = CreateConVar( "cl_playermodelid", "0", { FCVAR_ARCHIVE, FCVAR_USERINFO, FCVAR_DONTRECORD }, "The workshop id associated with the model, if the model is part of an addon. This value should not be changed manually" )
+	local playerflexes = CreateConVar( "cl_playerflexes", "0", flags, "The flexes to use, if the model has any" )
+	local playerhands = CreateConVar( "cl_playerhands", "", flags, "The hands to use, if the model has any" )
+	local playerhandsbodygroups = CreateConVar( "cl_playerhandsbodygroups", "0", flags, "The bodygroups on the hands to use, if the model has any" )
+	local playerhandsskin = CreateConVar( "cl_playerhandsskin", "0", flags, "The skin on the hands to use, if the model has any" )
+	local playermodelid = CreateConVar( "cl_playermodelid", "0", flags, "The workshop id associated with the model, if the model is part of an addon. This value should not be changed manually" )
 
 	local function FindModelID(model)
 		-- Handle default model replacements
@@ -1456,198 +1458,200 @@ if CLIENT then
 				weaponcolor:SetString( "0.30 1.80 2.10" )
 			end
 	---------------------------------------------------------------------------------
-			local shoptab = Menu.Right:Add( "DPropertySheet" )
-			Menu.Right:AddSheet( "#EPS.Workshop", shoptab, "icon16/wrench.png" )
+			if workshop_enabled:GetBool() then
+				local shoptab = Menu.Right:Add( "DPropertySheet" )
+				Menu.Right:AddSheet( "#EPS.Workshop", shoptab, "icon16/wrench.png" )
 
-				Menu.ShopFilter = shoptab:Add( "DTextEntry" )
-				Menu.ShopFilter:SetPlaceholderText( "#EPS.Search" )
-				Menu.ShopFilter:DockMargin( 8, 0, 8, 4 )
-				Menu.ShopFilter:Dock( TOP )
-				Menu.ShopFilter:SetUpdateOnType( true )
-				Menu.ShopFilter.OnValueChange = function() 
-					Menu.ShopPopulate()
-					if LocalPlayer():IsAdmin() then Menu.QueuePopulate() end
-				end
-
-
-				local HistoryScroll = shoptab:Add( "DScrollPanel" )
-				shoptab:AddSheet( "#EPS.Model.Icons", HistoryScroll, "icon16/application_view_tile.png" )
-				HistoryScroll:DockMargin( 2, 0, 2, 2 )
-				HistoryScroll:Dock( FILL )
-
-				local HistoryIconLayout = HistoryScroll:Add( "DIconLayout" )
-				HistoryIconLayout:SetSpaceX( 2 )
-				HistoryIconLayout:SetSpaceY( 2 )
-				HistoryIconLayout:Dock( FILL )
-
-				local HistoryList = shoptab:Add( "DListView" )
-				shoptab:AddSheet( "#EPS.Hands.Table", HistoryList, "icon16/application_view_list.png" )
-				HistoryList:DockMargin( 5, 0, 5, 5 )
-				HistoryList:Dock( FILL )
-				HistoryList:SetMultiSelect( false )
-				HistoryList:AddColumn( "#EPS.Hands.Table.Model" )
-				HistoryList:AddColumn( "#EPS.Workshop.Id" ):SetFixedWidth( 75 )
-				HistoryList.OnRowRightClick =  function( lst, index, pnl )
-					local options = DermaMenu(false, icon)
-					local id = pnl:GetColumnText( 2 )
-					options:AddOption( "Request Addon", function() RequestAddon(id) end):SetIcon( "icon16/add.png" )
-					if LocalPlayer():IsAdmin() then options:AddOption( "Force Add Addon", function() 
-						RequestAddon( id, EPS_APPROVE)
-					end):SetIcon( "icon16/shield.png" ) end
-					options:AddSpacer()
-					options:AddOption( "Open Workshop Page", function() gui.OpenURL( "https://steamcommunity.com/sharedfiles/filedetails/?id=" .. id) end):SetIcon( "icon16/world.png" )
-					options:AddOption( "Copy to Clipboard", function() SetClipboardText( id ) end):SetIcon( "icon16/page.png" )
-					options:AddSpacer()
-					options:AddOption( "Remove from History", function()
-						History[id] = nil
+					Menu.ShopFilter = shoptab:Add( "DTextEntry" )
+					Menu.ShopFilter:SetPlaceholderText( "#EPS.Search" )
+					Menu.ShopFilter:DockMargin( 8, 0, 8, 4 )
+					Menu.ShopFilter:Dock( TOP )
+					Menu.ShopFilter:SetUpdateOnType( true )
+					Menu.ShopFilter.OnValueChange = function() 
 						Menu.ShopPopulate()
-						file.Write( "lf_playermodel_selector/cl_history.txt", util.TableToJSON(History, true) )
-					end):SetIcon( "icon16/delete.png" )
-					options:Open()
-				end
-				HistoryList.DoDoubleClick = function( panel, rowIndex, row )
-					RequestAddon( row:GetValue( 2 ) )
-				end
+						if LocalPlayer():IsAdmin() then Menu.QueuePopulate() end
+					end
 
-				if LocalPlayer():IsAdmin() then
 
-					local QueueList = shoptab:Add( "DListView" )
-					shoptab:AddSheet( "Requests", QueueList, "icon16/script_edit.png" )
-					QueueList:DockMargin( 5, 0, 5, 5 )
-					QueueList:Dock( FILL )
-					QueueList:SetMultiSelect( false )
-					QueueList:AddColumn( "#EPS.Hands.Table.Model" )
-					QueueList:AddColumn( "Player" ):SetFixedWidth( 100 )
-					QueueList:AddColumn( "#EPS.Workshop.Id" ):SetFixedWidth( 75 )
-					QueueList:AddColumn( "plyID" ):SetFixedWidth( 0 )
-					QueueList:AddColumn( "" ):SetFixedWidth( 16 )
+					local HistoryScroll = shoptab:Add( "DScrollPanel" )
+					shoptab:AddSheet( "#EPS.Model.Icons", HistoryScroll, "icon16/application_view_tile.png" )
+					HistoryScroll:DockMargin( 2, 0, 2, 2 )
+					HistoryScroll:Dock( FILL )
 
-					QueueList.OnRowRightClick =  function( lst, index, pnl )
-					local options = DermaMenu(false, icon)
-					local id = pnl:GetColumnText( 3 )
-					options:AddOption( "Approve Addon", function() RequestAddon(id, EPS_APPROVE) end):SetIcon( "icon16/add.png" )
-					options:AddSpacer()
-					options:AddOption( "Open Workshop Page", function() gui.OpenURL( "https://steamcommunity.com/sharedfiles/filedetails/?id=" .. id) end):SetIcon( "icon16/world.png" )
-					options:AddOption( "Copy to Clipboard", function() SetClipboardText( id ) end):SetIcon( "icon16/page.png" )
-					options:AddOption( "Copy Player ID", function() SetClipboardText( pnl:GetColumnText( 4 ) ) end):SetIcon( "icon16/user.png" )
-					options:AddSpacer()
-					options:AddOption( "Deny Addon", function() RequestAddon(id, EPS_DENY) end):SetIcon( "icon16/delete.png" )
-					options:Open()
-				end
+					local HistoryIconLayout = HistoryScroll:Add( "DIconLayout" )
+					HistoryIconLayout:SetSpaceX( 2 )
+					HistoryIconLayout:SetSpaceY( 2 )
+					HistoryIconLayout:Dock( FILL )
 
-					function Menu.QueuePopulate()
-						QueueList:Clear()
+					local HistoryList = shoptab:Add( "DListView" )
+					shoptab:AddSheet( "#EPS.Hands.Table", HistoryList, "icon16/application_view_list.png" )
+					HistoryList:DockMargin( 5, 0, 5, 5 )
+					HistoryList:Dock( FILL )
+					HistoryList:SetMultiSelect( false )
+					HistoryList:AddColumn( "#EPS.Hands.Table.Model" )
+					HistoryList:AddColumn( "#EPS.Workshop.Id" ):SetFixedWidth( 75 )
+					HistoryList.OnRowRightClick =  function( lst, index, pnl )
+						local options = DermaMenu(false, icon)
+						local id = pnl:GetColumnText( 2 )
+						options:AddOption( "Request Addon", function() RequestAddon(id) end):SetIcon( "icon16/add.png" )
+						if LocalPlayer():IsAdmin() then options:AddOption( "Force Add Addon", function() 
+							RequestAddon( id, EPS_APPROVE)
+						end):SetIcon( "icon16/shield.png" ) end
+						options:AddSpacer()
+						options:AddOption( "Open Workshop Page", function() gui.OpenURL( "https://steamcommunity.com/sharedfiles/filedetails/?id=" .. id) end):SetIcon( "icon16/world.png" )
+						options:AddOption( "Copy to Clipboard", function() SetClipboardText( id ) end):SetIcon( "icon16/page.png" )
+						options:AddSpacer()
+						options:AddOption( "Remove from History", function()
+							History[id] = nil
+							Menu.ShopPopulate()
+							file.Write( "lf_playermodel_selector/cl_history.txt", util.TableToJSON(History, true) )
+						end):SetIcon( "icon16/delete.png" )
+						options:Open()
+					end
+					HistoryList.DoDoubleClick = function( panel, rowIndex, row )
+						RequestAddon( row:GetValue( 2 ) )
+					end
+
+					if LocalPlayer():IsAdmin() then
+
+						local QueueList = shoptab:Add( "DListView" )
+						shoptab:AddSheet( "Requests", QueueList, "icon16/script_edit.png" )
+						QueueList:DockMargin( 5, 0, 5, 5 )
+						QueueList:Dock( FILL )
+						QueueList:SetMultiSelect( false )
+						QueueList:AddColumn( "#EPS.Hands.Table.Model" )
+						QueueList:AddColumn( "Player" ):SetFixedWidth( 100 )
+						QueueList:AddColumn( "#EPS.Workshop.Id" ):SetFixedWidth( 75 )
+						QueueList:AddColumn( "plyID" ):SetFixedWidth( 0 )
+						QueueList:AddColumn( "" ):SetFixedWidth( 16 )
+
+						QueueList.OnRowRightClick =  function( lst, index, pnl )
+						local options = DermaMenu(false, icon)
+						local id = pnl:GetColumnText( 3 )
+						options:AddOption( "Approve Addon", function() RequestAddon(id, EPS_APPROVE) end):SetIcon( "icon16/add.png" )
+						options:AddSpacer()
+						options:AddOption( "Open Workshop Page", function() gui.OpenURL( "https://steamcommunity.com/sharedfiles/filedetails/?id=" .. id) end):SetIcon( "icon16/world.png" )
+						options:AddOption( "Copy to Clipboard", function() SetClipboardText( id ) end):SetIcon( "icon16/page.png" )
+						options:AddOption( "Copy Player ID", function() SetClipboardText( pnl:GetColumnText( 4 ) ) end):SetIcon( "icon16/user.png" )
+						options:AddSpacer()
+						options:AddOption( "Deny Addon", function() RequestAddon(id, EPS_DENY) end):SetIcon( "icon16/delete.png" )
+						options:Open()
+					end
+
+						function Menu.QueuePopulate()
+							QueueList:Clear()
+
+							local ShopFilter = Menu.ShopFilter:GetValue() or nil
+							for k, v in pairs(Queue) do
+								if IsInFilter( v.title .. k .. v.ply:GetName(), ShopFilter ) then
+									local line = QueueList:AddLine( v.title, v.ply:GetName(), k, v.ply:SteamID64() )
+									local tooltip = v.title .. "\nAddon Size: " .. math.Round( v.size / 1000000, 2) .. " Mb\nRequested by " .. v.ply:GetName() .. " (" .. v.ply:SteamID64() .. ")"
+									local icon = vgui.Create("DImage")
+									icon:SetImage("icon16/tick.png")
+									icon:SetKeepAspect(true)
+									icon:SetSelectable(true)
+									icon:SetParent(line)
+									if v["unpm"] then 
+										tooltip = tooltip .. "\nAddon may not have valid playermodel."
+										icon:SetImage("icon16/error.png")
+									end
+									if v["oversize"] then 
+										tooltip = tooltip .. "\nAddon is oversized."
+										icon:SetImage("icon16/error.png")
+									end
+									if not table.IsEmpty(v["content_descriptors"]) then 
+										tooltip = tooltip .. "\nAddon is NSFW!!!"
+										icon:SetImage("icon16/cross.png")
+									end
+									line:SetTooltip( tooltip )
+									line:SetColumnText( 5, icon )
+								end
+							end
+						end
+
+						Menu.QueuePopulate()
+					end
+
+
+					function Menu.ShopPopulate()
+
+						HistoryIconLayout:Clear()
+						HistoryList:Clear()
+
+						local icon = HistoryIconLayout:Add( "SpawnIcon" )
+						icon:SetSize( 128, 128 )
+						icon:SetSpawnIcon( "icon16/add.png" )
+						icon:SetTooltip( "#EPS.Hands.UsePM" )
+						icon.DoClick = function()
+							if IsValid(RequestFrame) then 
+								RequestFrame:MakePopup()
+								return
+							end
+							RequestFrame = vgui.Create( "DFrame" )
+							RequestFrame:SetSize( 300, 150 )
+							RequestFrame:Center()
+							RequestFrame:SetTitle( "Request an addon" )
+							RequestFrame:SetVisible( true )
+							RequestFrame:ShowCloseButton( true )
+							RequestFrame:MakePopup()
+
+							local TextEntry = vgui.Create( "DTextEntry", RequestFrame ) -- create the form as a child of frame
+							TextEntry:Dock( TOP )
+							TextEntry:SetPlaceholderText( "Enter Workshop ID" )
+							TextEntry.OnEnter = function( self )
+								RequestAddon(self:GetValue())
+								RequestFrame:Close()
+							end
+						end
 
 						local ShopFilter = Menu.ShopFilter:GetValue() or nil
-						for k, v in pairs(Queue) do
-							if IsInFilter( v.title .. k .. v.ply:GetName(), ShopFilter ) then
-								local line = QueueList:AddLine( v.title, v.ply:GetName(), k, v.ply:SteamID64() )
-								local tooltip = v.title .. "\nAddon Size: " .. math.Round( v.size / 1000000, 2) .. " Mb\nRequested by " .. v.ply:GetName() .. " (" .. v.ply:SteamID64() .. ")"
-								local icon = vgui.Create("DImage")
-								icon:SetImage("icon16/tick.png")
-								icon:SetKeepAspect(true)
-								icon:SetSelectable(true)
-								icon:SetParent(line)
-								if v["unpm"] then 
-									tooltip = tooltip .. "\nAddon may not have valid playermodel."
-									icon:SetImage("icon16/error.png")
+
+						for id, v in SortedPairsByMemberValue( History, "time", true ) do
+
+							if IsInFilter( v.title .. id, ShopFilter ) then
+								local icon = HistoryIconLayout:Add( "DImageButton" )
+								icon:SetSize( 128, 128 )
+								if v.previewid then
+									if not file.Exists( "cache/workshop/" .. v.previewid .. ".cache","GAME" ) then
+										steamworks.Download( v.previewid, false, function( path )
+											icon:SetMaterial( AddonMaterial( path ) )
+										end)
+									else
+										icon:SetMaterial( AddonMaterial("cache/workshop/" .. v.previewid .. ".cache","GAME") )
+									end
 								end
-								if v["oversize"] then 
-									tooltip = tooltip .. "\nAddon is oversized."
-									icon:SetImage("icon16/error.png")
+								icon:SetTooltip( v.title )
+								icon.DoDoubleClick = function()
+									RequestAddon(id)
 								end
-								if not table.IsEmpty(v["content_descriptors"]) then 
-									tooltip = tooltip .. "\nAddon is NSFW!!!"
-									icon:SetImage("icon16/cross.png")
+
+								icon.DoRightClick = function()
+									local options = DermaMenu(false, icon)
+
+									options:AddOption( "Request Addon", function() RequestAddon( id ) end):SetIcon( "icon16/add.png" )
+									if LocalPlayer():IsAdmin() then 
+										options:AddOption( "Force Add Addon", function() RequestAddon( id, EPS_APPROVE) end):SetIcon( "icon16/shield.png" )
+									end
+									options:AddSpacer()
+									options:AddOption( "Open Workshop Page", function() gui.OpenURL( "https://steamcommunity.com/sharedfiles/filedetails/?id=" .. id) end):SetIcon( "icon16/world.png" )
+									options:AddOption( "Copy to Clipboard", function() SetClipboardText( id ) end):SetIcon( "icon16/page.png" )
+									options:AddSpacer()
+									options:AddOption( "Remove from History", function()
+										History[id] = nil
+										Menu.ShopPopulate()
+										file.Write( "lf_playermodel_selector/cl_history.txt", util.JSONToTable(History, true) )
+									end):SetIcon( "icon16/delete.png" )
+									options:Open()
 								end
-								line:SetTooltip( tooltip )
-								line:SetColumnText( 5, icon )
+
+								HistoryList:AddLine( v.title, id )
 							end
 						end
+
 					end
 
-					Menu.QueuePopulate()
+					Menu.ShopPopulate()
 				end
-
-
-				function Menu.ShopPopulate()
-
-					HistoryIconLayout:Clear()
-					HistoryList:Clear()
-
-					local icon = HistoryIconLayout:Add( "SpawnIcon" )
-					icon:SetSize( 128, 128 )
-					icon:SetSpawnIcon( "icon16/add.png" )
-					icon:SetTooltip( "#EPS.Hands.UsePM" )
-					icon.DoClick = function()
-						if IsValid(RequestFrame) then 
-							RequestFrame:MakePopup()
-							return
-						end
-						RequestFrame = vgui.Create( "DFrame" )
-						RequestFrame:SetSize( 300, 150 )
-						RequestFrame:Center()
-						RequestFrame:SetTitle( "Request an addon" )
-						RequestFrame:SetVisible( true )
-						RequestFrame:ShowCloseButton( true )
-						RequestFrame:MakePopup()
-
-						local TextEntry = vgui.Create( "DTextEntry", RequestFrame ) -- create the form as a child of frame
-						TextEntry:Dock( TOP )
-						TextEntry:SetPlaceholderText( "Enter Workshop ID" )
-						TextEntry.OnEnter = function( self )
-							RequestAddon(self:GetValue())
-							RequestFrame:Close()
-						end
-					end
-
-					local ShopFilter = Menu.ShopFilter:GetValue() or nil
-
-					for id, v in SortedPairsByMemberValue( History, "time", true ) do
-
-						if IsInFilter( v.title .. id, ShopFilter ) then
-							local icon = HistoryIconLayout:Add( "DImageButton" )
-							icon:SetSize( 128, 128 )
-							if v.previewid then
-								if not file.Exists( "cache/workshop/" .. v.previewid .. ".cache","GAME" ) then
-									steamworks.Download( v.previewid, false, function( path )
-										icon:SetMaterial( AddonMaterial( path ) )
-									end)
-								else
-									icon:SetMaterial( AddonMaterial("cache/workshop/" .. v.previewid .. ".cache","GAME") )
-								end
-							end
-							icon:SetTooltip( v.title )
-							icon.DoDoubleClick = function()
-								RequestAddon(id)
-							end
-
-							icon.DoRightClick = function()
-								local options = DermaMenu(false, icon)
-
-								options:AddOption( "Request Addon", function() RequestAddon( id ) end):SetIcon( "icon16/add.png" )
-								if LocalPlayer():IsAdmin() then 
-									options:AddOption( "Force Add Addon", function() RequestAddon( id, EPS_APPROVE) end):SetIcon( "icon16/shield.png" )
-								end
-								options:AddSpacer()
-								options:AddOption( "Open Workshop Page", function() gui.OpenURL( "https://steamcommunity.com/sharedfiles/filedetails/?id=" .. id) end):SetIcon( "icon16/world.png" )
-								options:AddOption( "Copy to Clipboard", function() SetClipboardText( id ) end):SetIcon( "icon16/page.png" )
-								options:AddSpacer()
-								options:AddOption( "Remove from History", function()
-									History[id] = nil
-									Menu.ShopPopulate()
-									file.Write( "lf_playermodel_selector/cl_history.txt", util.JSONToTable(History, true) )
-								end):SetIcon( "icon16/delete.png" )
-								options:Open()
-							end
-
-							HistoryList:AddLine( v.title, id )
-						end
-					end
-
-				end
-
-				Menu.ShopPopulate()
 
 	---------------------------------------------------------------------------------
 
@@ -1937,6 +1941,76 @@ if CLIENT then
 					t:SetDark( true )
 					t:SetWrap( true )
 
+					local c = panel:Add( "DCheckBoxLabel" )
+					c.cvar = "sv_playermodel_selector_workshop_enabled"
+					c:Dock( TOP )
+					c:DockMargin( 0, 0, 0, 5 )
+					c:SetValue( GetConVar(c.cvar):GetBool() )
+					c:SetText( "sv_playermodel_selector_workshop_enabled" )
+					c:SetDark( true )
+					c.OnChange = ChangeCVar
+
+					local t = panel:Add( "DLabel" )
+					t:Dock( TOP )
+					t:DockMargin( 0, 0, 0, 20 )
+					t:SetAutoStretchVertical( true )
+					t:SetText( "enables all workshop functionalities" )
+					t:SetDark( true )
+					t:SetWrap( true )
+
+					local c = panel:Add( "DCheckBoxLabel" )
+					c.cvar = "sv_playermodel_selector_workshop_queue"
+					c:Dock( TOP )
+					c:DockMargin( 0, 0, 0, 5 )
+					c:SetValue( GetConVar(c.cvar):GetBool() )
+					c:SetText( "sv_playermodel_selector_workshop_queue" )
+					c:SetDark( true )
+					c.OnChange = ChangeCVar
+
+					local t = panel:Add( "DLabel" )
+					t:Dock( TOP )
+					t:DockMargin( 0, 0, 0, 20 )
+					t:SetAutoStretchVertical( true )
+					t:SetText( "enables the request queue system for admin review, disable to imedeatly load all requested models" )
+					t:SetDark( true )
+					t:SetWrap( true )
+
+					local c = panel:Add( "DCheckBoxLabel" )
+					c.cvar = "sv_playermodel_selector_workshop_descriptor"
+					c:Dock( TOP )
+					c:DockMargin( 0, 0, 0, 5 )
+					c:SetValue( GetConVar(c.cvar):GetBool() )
+					c:SetText( "sv_playermodel_selector_workshop_descriptor" )
+					c:SetDark( true )
+					c.OnChange = ChangeCVar
+
+					local t = panel:Add( "DLabel" )
+					t:Dock( TOP )
+					t:DockMargin( 0, 0, 0, 20 )
+					t:SetAutoStretchVertical( true )
+					t:SetText( "Allows models with content descriptors to be requested/loaded, which may include NSFW content" )
+					t:SetDark( true )
+					t:SetWrap( true )
+
+					local c = panel:Add( "DCheckBoxLabel" )
+					c.cvar = "sv_playermodel_selector_workshop_load"
+					c:Dock( TOP )
+					c:DockMargin( 0, 0, 0, 5 )
+					c:SetValue( GetConVar(c.cvar):GetBool() )
+					c:SetText( "sv_playermodel_selector_workshop_load" )
+					c:SetDark( true )
+					c.OnChange = ChangeCVar
+
+					local t = panel:Add( "DLabel" )
+					t:Dock( TOP )
+					t:DockMargin( 0, 0, 0, 20 )
+					t:SetAutoStretchVertical( true )
+					t:SetText( "Enables loading functionality" )
+					t:SetDark( true )
+					t:SetWrap( true )
+
+
+
 
 					local panel = moretab:Add( "DPanel" )
 					moretab:AddSheet( "#EPS.Settings.GM_Blacklist", panel, "icon16/delete.png" )
@@ -2133,10 +2207,10 @@ if CLIENT then
 				Viewmodel Preview: <a href="javascript:url.open( 'https://steamcommunity.com/profiles/76561198005173328' )" oncontextmenu="url.copy( 'https://steamcommunity.com/profiles/76561198005173328' )">YuRaNnNzZZ</a><br>
 				Localization Support: <a href="javascript:url.open( 'https://steamcommunity.com/profiles/76561198314221237' )" oncontextmenu="url.copy( 'https://steamcommunity.com/profiles/76561198314221237' )">Insane Black Rock Shooter</a><br>
 				Serverside Workshop Support: <a href="javascript:url.open( 'https://steamcommunity.com/profiles/76561198073759827' )" oncontextmenu="url.copy( 'https://steamcommunity.com/profiles/76561198073759827' )">Unaverage Joe.</a><br>
-				Thank you for installing this addon! Enjoying it?<br><a href="javascript:url.open( 'http://steamcommunity.com/sharedfiles/filedetails/?id=504945881' )" oncontextmenu="url.copy( 'http://steamcommunity.com/sharedfiles/filedetails/?id=504945881' )">Please leave a LIKE on the workshop page.</a>]]
+				Thank you for installing this addon! Enjoying it?<br><a href="javascript:url.open( 'http://steamcommunity.com/sharedfiles/filedetails/?id=3717454112' )" oncontextmenu="url.copy( 'http://steamcommunity.com/sharedfiles/filedetails/?id=3717454112' )">Please leave a LIKE on the workshop page.</a>]]
 				if not game.SinglePlayer() and not LocalPlayer():IsSuperAdmin() then
 					intro = [[This server is running Enhanced PlayerModel Selector by <a href="javascript:url.open( 'http://steamcommunity.com/id/libertyforce' )" oncontextmenu="url.copy( 'http://steamcommunity.com/id/libertyforce' )">LibertyForce</a>. Enjoying it?<br>
-					<a href="javascript:url.open( 'http://steamcommunity.com/sharedfiles/filedetails/?id=504945881' )" oncontextmenu="url.copy( 'http://steamcommunity.com/sharedfiles/filedetails/?id=504945881' )">Click here to download this addon for SinglePlayer.</a>]]
+					<a href="javascript:url.open( 'http://steamcommunity.com/sharedfiles/filedetails/?id=3717454112' )" oncontextmenu="url.copy( 'http://steamcommunity.com/sharedfiles/filedetails/?id=3717454112' )">Click here to download this addon for SinglePlayer.</a>]]
 				end
 
 				t:SetHTML( [[
