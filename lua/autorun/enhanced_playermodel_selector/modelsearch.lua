@@ -69,10 +69,10 @@ end
 
 local function BeginSearching()
     // Put all models into a table. Every last one.
-    if WSHL and WSHL.Addons then
+    if WSHL and not table.IsEmpty(WSHL.Addons.Path) then
         for id, path in pairs(WSHL.Addons.Path) do
             AddRecursive(path, "models/", "model", id)
-        end   
+        end
         return
     end
     print("WSHL cache not found")
@@ -83,14 +83,12 @@ local function BeginSearching()
     end
 end
 
-hook.Add("InitPostEntity", "StonemanAddonSearcher:Cache", function()
-    timer.Simple(5, function()
-        ModelCache = {}
-        BeginSearching()
-    end)
+hook.Add("InitPostEntity", "EPS_ModelCache_Init", function()
+    ModelCache = {}
+    BeginSearching()
 end)
 
-hook.Add("WSHL.BundleInitialized", "stoneman_search_addons_reload", function()
+hook.Add("WSHL.BundleInitialized", "EPS_ModelCache_Update", function()
     ModelCache = {}
     BeginSearching()
 end)
