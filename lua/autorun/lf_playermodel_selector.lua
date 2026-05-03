@@ -3,9 +3,9 @@
 -- Based on: https://github.com/Facepunch/garrysmod/blob/master/garrysmod/gamemodes/sandbox/gamemode/editor_player.lua
 
 include("enhanced_playermodel_selector/default_playermodels.lua")
-include("enhanced_playermodel_selector/modelsearch.lua")
+AddCSLuaFile("enhanced_playermodel_selector/modelsearch.lua")
 
-EPS_VERSION = "5.0.3 Experimental"
+EPS_VERSION = "5.0.4 Experimental"
 
 local EPS_REQUEST = 0
 local EPS_APPROVE = 1
@@ -123,6 +123,24 @@ if SERVER then
 		end
 	end
 
+	local ActiveIDs = { } -- Clears on first server start, relies on Facepunch/garrysmod-issues/issues/3001
+	if (string.StartWith( game.GetIPAddress() , "0.0.0.0" )) then
+		file.Delete( "lf_playermodel_selector/sv_activeids.txt" )
+	end
+	if file.Exists( "lf_playermodel_selector/sv_activeids.txt", "DATA" ) then
+		local loaded = util.JSONToTable( file.Read( "lf_playermodel_selector/sv_activeids.txt", "DATA" ) )
+		if istable( loaded ) then
+			for k, v in pairs( loaded ) do
+				ActiveIDs[tostring(k)] = v
+			end
+			loaded = nil
+		end
+	end
+
+	for k, _ in ipairs(ActiveIDs) do
+		resource.AddWorkshop(k)
+	end
+
 	local Queue = {}
 
 	local function CheckSteamworks()
@@ -133,7 +151,7 @@ if SERVER then
 		if not util.IsBinaryModuleInstalled("workshop") then
 			return false
 		end
-
+				
 		require("workshop")
 
 		return steamworks ~= nil
@@ -143,6 +161,8 @@ if SERVER then
 		if not convars["sv_playermodel_selector_workshop_enabled"]:GetBool() then return end
 		if WSHL and convars["sv_playermodel_selector_workshop_load"]:GetBool() then
 			wshl(wsid, false, true, 2)
+			ActiveIDs[wsid] = true
+			file.Write( "lf_playermodel_selector/sv_activeids.txt", util.TableToJSON(ActiveIDs))
 			PrintMessage(HUD_PRINTTALK, "LF_PMS: New Model/s have been added.")
 		else
 			if not CheckSteamworks() then
@@ -159,6 +179,8 @@ if SERVER then
 					net.Send(Entity(1))
 			end
 			resource.AddWorkshop(wsid)
+			ActiveIDs[wsid] = true
+			file.Write( "lf_playermodel_selector/sv_activeids.txt", util.TableToJSON(ActiveIDs))
 			PrintMessage(HUD_PRINTTALK, "LF_PMS: New Model/s will be added on map change.")
 		end
 		net.Start("lf_playermodel_cvar_change")
@@ -542,6 +564,8 @@ end
 -----------------------------------------------------------------------------------------------------------------------------------------------------
 
 if CLIENT then
+
+	include("enhanced_playermodel_selector/modelsearch.lua")
 
 	local Menu = { }
 	local MainWindow
@@ -1590,7 +1614,7 @@ if CLIENT then
 									options:AddOption( "Remove from History", function()
 										History[id] = nil
 										Menu.ShopPopulate()
-										file.Write( "lf_playermodel_selector/cl_history.txt", util.JSONToTable(History, true) )
+										file.Write( "lf_playermodel_selector/cl_history.txt", util.TableToJSON(History, true) )
 									end):SetIcon( "icon16/delete.png" )
 									options:Open()
 								end
