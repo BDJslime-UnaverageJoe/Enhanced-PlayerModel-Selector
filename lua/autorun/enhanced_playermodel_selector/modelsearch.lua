@@ -34,36 +34,14 @@ local function AddRecursive(addon, folder, wildcard, wsid)
     if ( not files ) then MsgN( "Warning! Not opening '" .. folder .. "' because we cannot search in it!"  ) return false end
 
     for k, v in pairs( files ) do
-        if wildcard == "weapon" or wildcard == "entity" then
-            if ( not string.EndsWith( v, ".lua" ) ) then continue end
-            local found = v
-
-            // Remove the .lua extension
-            found = string.gsub(found, ".lua", "")
-            found = string.lower(found)
-            ModelCache[found] = wsid
-
-            continue
-        else
-            if ( not string.EndsWith( v, ".mdl" ) ) then continue end
-            local found = folder .. v
-            found = string.lower(found)
-            ModelCache[found] = wsid
-
-            continue
-        end
+        if ( not string.EndsWith( v, ".mdl" ) ) then continue end
+        local found = folder .. v
+        found = string.lower(found)
+        ModelCache[found] = wsid
     end
 
     for k, v in pairs( folders ) do
-        if wildcard == "weapon" or wildcard == "entity" then
-            local found = v
-            found = string.lower(found)
-            ModelCache[found] = wsid
-
-            continue
-        else
-            AddRecursive( addon, folder .. v .. "/", wildcard, wsid )
-        end
+        AddRecursive( addon, folder .. v .. "/", wildcard, wsid )
     end
 end
 
@@ -88,7 +66,6 @@ hook.Add("InitPostEntity", "EPS_ModelCache_Init", function()
     BeginSearching()
 end)
 
-hook.Add("WSHL.BundleInitialized", "EPS_ModelCache_Update", function()
-    ModelCache = {}
-    BeginSearching()
+hook.Add("WSHL.AddonMounted", "EPS_ModelCache_Update", function( wsid, addon, files)
+    AddRecursive(addon, "models/", "model", wsid)
 end)

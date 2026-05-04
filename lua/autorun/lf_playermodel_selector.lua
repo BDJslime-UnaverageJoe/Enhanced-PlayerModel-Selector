@@ -5,7 +5,7 @@
 include("enhanced_playermodel_selector/default_playermodels.lua")
 AddCSLuaFile("enhanced_playermodel_selector/modelsearch.lua")
 
-EPS_VERSION = "5.0.4 Experimental"
+EPS_VERSION = "5.0.5 Experimental"
 
 local EPS_REQUEST = 0
 local EPS_APPROVE = 1
@@ -151,7 +151,7 @@ if SERVER then
 		if not util.IsBinaryModuleInstalled("workshop") then
 			return false
 		end
-				
+
 		require("workshop")
 
 		return steamworks ~= nil
@@ -704,6 +704,7 @@ if CLIENT then
 		RunConsoleCommand( "cl_playermodel", Current.model )
 		playerbodygroups:SetString( Current.bodygroups )
 		playerskin:SetInt( Current.skin )
+		playerflexes:SetString( Current.flex )
 		playerhands:SetString( Current.hand )
 		playerhandsbodygroups:SetString( Current.handgroups )
 		playerhandsskin:SetInt( Current.handskin )
@@ -1471,7 +1472,7 @@ if CLIENT then
 							RequestAddon( id, EPS_APPROVE)
 						end):SetIcon( "icon16/shield.png" ) end
 						options:AddSpacer()
-						options:AddOption( "Open Workshop Page", function() gui.OpenURL( "https://steamcommunity.com/sharedfiles/filedetails/?id=" .. id) end):SetIcon( "icon16/world.png" )
+						options:AddOption( "Open Workshop Page", function() steamworks.ViewFile( id ) end):SetIcon( "icon16/world.png" )
 						options:AddOption( "Copy to Clipboard", function() SetClipboardText( id ) end):SetIcon( "icon16/page.png" )
 						options:AddSpacer()
 						options:AddOption( "Remove from History", function()
@@ -1503,7 +1504,7 @@ if CLIENT then
 						local id = pnl:GetColumnText( 3 )
 						options:AddOption( "Approve Addon", function() RequestAddon(id, EPS_APPROVE) end):SetIcon( "icon16/add.png" )
 						options:AddSpacer()
-						options:AddOption( "Open Workshop Page", function() gui.OpenURL( "https://steamcommunity.com/sharedfiles/filedetails/?id=" .. id) end):SetIcon( "icon16/world.png" )
+						options:AddOption( "Open Workshop Page", function() steamworks.ViewFile( id ) end):SetIcon( "icon16/world.png" )
 						options:AddOption( "Copy to Clipboard", function() SetClipboardText( id ) end):SetIcon( "icon16/page.png" )
 						options:AddOption( "Copy Player ID", function() SetClipboardText( pnl:GetColumnText( 4 ) ) end):SetIcon( "icon16/user.png" )
 						options:AddSpacer()
@@ -1608,7 +1609,7 @@ if CLIENT then
 										options:AddOption( "Force Add Addon", function() RequestAddon( id, EPS_APPROVE) end):SetIcon( "icon16/shield.png" )
 									end
 									options:AddSpacer()
-									options:AddOption( "Open Workshop Page", function() gui.OpenURL( "https://steamcommunity.com/sharedfiles/filedetails/?id=" .. id) end):SetIcon( "icon16/world.png" )
+									options:AddOption( "Open Workshop Page", function() steamworks.ViewFile( id ) end):SetIcon( "icon16/world.png" )
 									options:AddOption( "Copy to Clipboard", function() SetClipboardText( id ) end):SetIcon( "icon16/page.png" )
 									options:AddSpacer()
 									options:AddOption( "Remove from History", function()
