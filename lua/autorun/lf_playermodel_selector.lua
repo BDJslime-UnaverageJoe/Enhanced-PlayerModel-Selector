@@ -704,7 +704,7 @@ if CLIENT then
 		RunConsoleCommand( "cl_playermodel", Current.model )
 		playerbodygroups:SetString( Current.bodygroups )
 		playerskin:SetInt( Current.skin )
-		playerflexes:SetString( Current.flex )
+		playerflexes:SetString( Current.flex or "" )
 		playerhands:SetString( Current.hand )
 		playerhandsbodygroups:SetString( Current.handgroups )
 		playerhandsskin:SetInt( Current.handskin )
@@ -1010,7 +1010,7 @@ if CLIENT then
 					Current.model = name
 					Current.bodygroups = "0"
 					Current.skin = 0
-					Current.flex = "0"
+					Current.flex = ""
 					Current.hand = ""
 					Current.handgroups = "0"
 					Current.handskin = 0
@@ -1042,7 +1042,7 @@ if CLIENT then
 								Current.model = name
 								Current.bodygroups = "0"
 								Current.skin = 0
-								Current.flex = "0"
+								Current.flex = ""
 								Current.hand = ""
 								Current.handgroups = "0"
 								Current.handskin = 0
