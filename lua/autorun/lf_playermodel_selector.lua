@@ -2698,7 +2698,9 @@ if CLIENT then
 		end
 
 		hook.Add("WSHL.BundleInitialized", "EPS_Refresh", function()
-			Menu.UpdateFromConvars()
+			if IsValid(MainWindow) then
+				Menu.UpdateFromConvars()
+			end
 		end)
 
 		function Menu.UpdateFromControls()
