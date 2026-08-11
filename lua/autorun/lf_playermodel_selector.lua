@@ -709,7 +709,7 @@ if CLIENT then
 		playerhandsbodygroups:SetString( Current.handgroups )
 		playerhandsskin:SetInt( Current.handskin )
 		timer.Simple(0, function ()
-			playermodelid:SetString( Current.modelid )
+			playermodelid:SetString( Current.modelid or "" )
 			if LocalPlayer():IsAdmin() or GetConVar( "sv_playermodel_selector_instantly" ):GetBool() then
 				net.Start("lf_playermodel_update")
 				net.SendToServer()
