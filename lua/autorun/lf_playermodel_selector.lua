@@ -1722,7 +1722,7 @@ if CLIENT then
 				c:SetText( "#EPS.Settings.Client.EnforcePM" )
 				c:SetDark( true )
 				function c:OnChange( v )
-					c.cvar:SetBool( v == true and "1" or "0" )
+					c.cvar:SetBool( v == true )
 				end
 
 				local t = panel:Add( "DLabel" )
@@ -1741,7 +1741,7 @@ if CLIENT then
 				c:SetText( "#EPS.Settings.Client.TranslateBodygroup" )
 				c:SetDark( true )
 				function c:OnChange( v )
-					c.cvar:SetBool( v == true and "1" or "0" )
+					c.cvar:SetBool( v == true )
 				end
 
 				local t = panel:Add( "DLabel" )
@@ -1761,7 +1761,7 @@ if CLIENT then
 				c:SetDark( true )
 				c:SizeToContents()
 				function c:OnChange( v )
-					c.cvar:SetBool( v == true and "1" or "0" )
+					c.cvar:SetBool( v == true )
 				end
 
 				local t = panel:Add( "DLabel" )
