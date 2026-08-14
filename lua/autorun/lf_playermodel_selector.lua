@@ -1010,7 +1010,7 @@ if CLIENT then
 					Current.model = name
 					Current.bodygroups = "0"
 					Current.skin = 0
-					Current.flex = ""
+					Current.flex = "0"
 					Current.hand = ""
 					Current.handgroups = "0"
 					Current.handskin = 0
@@ -1042,7 +1042,7 @@ if CLIENT then
 								Current.model = name
 								Current.bodygroups = "0"
 								Current.skin = 0
-								Current.flex = ""
+								Current.flex = "0"
 								Current.hand = ""
 								Current.handgroups = "0"
 								Current.handskin = 0
@@ -1846,6 +1846,10 @@ if CLIENT then
 					c.cvar:SetBool( v == true )
 					timer.Simple( 0, function() Menu.RebuildBodygroupTab() end )
 				end
+				if (!GetConVar( "sv_playermodel_selector_flexes" ):GetBool()) then
+					c:SetDisabled(true)
+					c:SetText("Flexes are disabled on the server.")
+				end
 
 				local t = panel:Add( "DLabel" )
 				t:Dock( TOP )
@@ -2602,7 +2606,7 @@ if CLIENT then
 				t:SetWrap( true )
 				flexcontrolspanel:AddItem( t )
 
-				local flexes = string.Explode( " ", Current.flex or "" )
+				local flexes = string.Explode( " ", Current.flex or "0" )
 				for k = 0, ModelPreview.Entity:GetFlexNum() - 1 do
 					if ( ModelPreview.Entity:GetFlexNum( k ) <= 1 ) then continue end
 
