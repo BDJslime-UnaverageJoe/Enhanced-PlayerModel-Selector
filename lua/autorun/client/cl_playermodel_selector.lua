@@ -1,5 +1,3 @@
-include("enhanced_playermodel_selector/modelsearch.lua")
-
 local Menu = { }
 local MainWindow
 local default_animations = { "idle_all_01", "menu_walk", "menu_combine", "pose_standing_02", "pose_standing_03", "idle_fist", "menu_gman", "idle_all_scared", "menu_zombie_01", "idle_magic", "walk_ar2" }

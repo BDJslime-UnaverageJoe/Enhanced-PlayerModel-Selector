@@ -4,8 +4,12 @@
 
 
 if SERVER then
-	include("enhanced_playermodel_selector/default_playermodels.lua")
+	AddCSLuaFile("enhanced_playermodel_selector/default_playermodels.lua")
 	AddCSLuaFile("enhanced_playermodel_selector/modelsearch.lua")
+end
+if CLIENT then
+	include("enhanced_playermodel_selector/modelsearch.lua")
+	include("enhanced_playermodel_selector/default_playermodels.lua")
 end
 
 EPS_VERSION = "5.0.5 Experimental"
