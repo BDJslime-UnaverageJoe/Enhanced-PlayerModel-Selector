@@ -1,5 +1,5 @@
 local Menu = { }
-local MainWindow
+local window
 local default_animations = { "idle_all_01", "menu_walk", "menu_combine", "pose_standing_02", "pose_standing_03", "idle_fist", "menu_gman", "idle_all_scared", "menu_zombie_01", "idle_magic", "walk_ar2" }
 local currentanim = 0
 local Favorites = { }
@@ -45,7 +45,7 @@ net.Receive("lf_playermodel_workshop", function()
         local ply = player.GetBySteamID64(v)
         if ply then
             steamworks.FileInfo( k, function( result )
-                result = EPS_CheckValidAddon( result ) or result
+                result = CheckValidAddon( result ) or result
                 Queue[k] = result
                 Queue[k].ply = ply
                 Menu.QueuePopulate()
@@ -118,14 +118,14 @@ cvars.AddChangeCallback("cl_playermodel", function(convar_name, value_old, value
 end)
 
 local function KeyboardOn( pnl )
-    if ( IsValid( MainWindow ) and IsValid( pnl ) and pnl:HasParent( MainWindow ) ) then
-        MainWindow:SetKeyboardInputEnabled( true )
+    if ( IsValid( window ) and IsValid( pnl ) and pnl:HasParent( window ) ) then
+        window:SetKeyboardInputEnabled( true )
     end
 end
 hook.Add( "OnTextEntryGetFocus", "lf_playermodel_keyboard_on", KeyboardOn )
 local function KeyboardOff( pnl )
-    if ( IsValid( MainWindow ) and IsValid( pnl ) and pnl:HasParent( MainWindow ) ) then
-        MainWindow:SetKeyboardInputEnabled( false )
+    if ( IsValid( window ) and IsValid( pnl ) and pnl:HasParent( window ) ) then
+        window:SetKeyboardInputEnabled( false )
     end
 end
 hook.Add( "OnTextEntryLoseFocus", "lf_playermodel_keyboard_off", KeyboardOff )
@@ -169,7 +169,7 @@ local function RequestAddon( wsid, action )
     action = action or EPS_REQUEST
     if action == EPS_REQUEST then
         steamworks.FileInfo( wsid, function( result )
-            if EPS_CheckValidAddon( result ) then
+            if CheckValidAddon( result ) then
                 if not History[wsid] then
                     History[wsid] = { }
                     History[wsid].previewid = result.previewid
@@ -225,7 +225,6 @@ end
 
 function UrlToWorkshopID(url,numok) -- Thanks Outfitter
     if not url or not isstring(url) then return end
-    
 
     local ret = url:match'://steamcommunity.com/sharedfiles/filedetails/.*[%?%&]id=(%d+)' or url:match'://steamcommunity.com/workshop/filedetails/.*[%?%&]id=(%d+)'
     if ret then return ret end
@@ -247,17 +246,37 @@ function Menu.Setup()
     Current.handgroups = playerhandsbodygroups:GetString()
     Current.handskin = playerhandsskin:GetInt()
 
-    MainWindow = vgui.Create( "DFrame" )
-    local fw, fh = math.min( ScrW() - 16, 960 ), math.min( ScrH() - 16, 700 )
-    MainWindow:SetSize( fw, fh )
-    MainWindow:SetTitle( string.format(language.GetPhrase("EPS.Title"),EPS_VERSION) )
-    MainWindow:SetVisible( true )
-    MainWindow:SetDraggable( true )
-    MainWindow:SetScreenLock( false )
-    MainWindow:ShowCloseButton( true )
-    MainWindow:Center()
-    MainWindow:MakePopup()
-    MainWindow:SetKeyboardInputEnabled( false )
+    window = vgui.Create( "DFrame" )
+    local fw, fh = math.max( ScrW() * 0.8, 960 ), math.max( ScrH() * 0.8, 700 )
+    window:SetSize( fw, fh )
+    window:SetTitle( string.format(language.GetPhrase("EPS.Title"),EPS_VERSION) )
+    window:SetVisible( true )
+    window:SetDraggable( true )
+    window:SetScreenLock( false )
+    window:ShowCloseButton( true )
+    window:SetMinWidth( 400 )
+    window:SetMinHeight( 250 )
+    window:Center()
+    window:MakePopup()
+    window:SetKeyboardInputEnabled( false )
+
+    local divider = window:Add( "DHorizontalDivider" )
+    divider:Dock( FILL )
+    divider:SetLeftWidth( window:GetWide() / 2 )
+    divider:SetLeftMin( 150 )
+    divider:SetRightMin( 250 )
+    divider:SetCookieName( "PlayerModelSelectorDivider" )
+
+    local sheet = divider:Add( "DPropertySheet" )
+    sheet:SetWide( window:GetWide() / 2 )
+    divider:SetRight( sheet )
+
+    function Menu.IsHandsTabActive()
+        if not IsValid(sheet) or not IsValid(sheet:GetActiveTab()) then return false end
+
+        return sheet:GetActiveTab():GetPanel().IsHandsTab
+    end
+
     local r, g, b = 97, 100, 102
     if GetConVar( "cl_playermodel_selector_bgcolor_custom" ):GetBool() then
         local bgcolor = string.Explode( " ", playercolor:GetString() )
@@ -271,34 +290,34 @@ function Menu.Setup()
         end
     end
     local a = GetConVar( "cl_playermodel_selector_bgcolor_trans" ):GetBool() == true and 127 or 255
-    MainWindow.Paint = function( self, w, h )
+    window.Paint = function( self, w, h )
         draw.RoundedBox( 10, 0, 0, w, h, Color( r, g, b, a ) ) return true
     end
 
-    MainWindow.lblTitle:SetTextColor( Color( 0, 0, 0, 255 ) )
-    MainWindow.lblTitle.Paint = function ( self, w, h )
-        draw.SimpleTextOutlined( MainWindow.lblTitle:GetText(), "DermaDefaultBold", 1, 2, Color( 255, 255, 255, 255), 0, 0, 1, Color( 0, 0, 0, 255) ) return true
+    window.lblTitle:SetTextColor( Color( 0, 0, 0, 255 ) )
+    window.lblTitle.Paint = function ( self, w, h )
+        draw.SimpleTextOutlined( window.lblTitle:GetText(), "DermaDefaultBold", 1, 2, Color( 255, 255, 255, 255), 0, 0, 1, Color( 0, 0, 0, 255) ) return true
     end
 
-    MainWindow.btnMinim:SetEnabled( true )
-    MainWindow.btnMinim.DoClick = function()
-        MainWindow:SetVisible( false )
+    window.btnMinim:SetEnabled( true )
+    window.btnMinim.DoClick = function()
+        window:SetVisible( false )
     end
-    --MainWindow.btnMaxim.Paint = function( panel, w, h ) derma.SkinHook( "Paint", "WindowMinimizeButton", panel, w, h ) end
+    --window.btnMaxim.Paint = function( panel, w, h ) derma.SkinHook( "Paint", "WindowMinimizeButton", panel, w, h ) end
     local maxi_allowed = false
     local maxi_mode = 0
     if ScrW() > fw and ScrH() > fh then maxi_allowed = true end
-    MainWindow.btnMaxim:SetEnabled( maxi_allowed )
-    MainWindow.btnMaxim.DoClick = function()
+    window.btnMaxim:SetEnabled( maxi_allowed )
+    window.btnMaxim.DoClick = function()
         local WorkshopButtonWidth, WorkshopButtonHeight = Menu.WorkshopButton:GetTextSize()
         local ApplyButtonWidth, ApplyButtonHeight = Menu.ApplyButton:GetTextSize()
         local ResetButtonWidth, ResetButtonHeight = Menu.ResetButton:GetTextSize()
         local AnimButtonWidth, AnimButtonHeight = Menu.AnimButton:GetTextSize()
         if maxi_allowed and maxi_mode == 0 then
-            MainWindow:SetSize( ScrW(), ScrH() )
-            MainWindow:Center()
-            MainWindow:SetDraggable( false )
-            Menu.ApplyButton:SetPos( ScrW() - (ApplyButtonWidth + 480), 0 )
+            window:SetSize( ScrW(), ScrH() )
+            window:Center()
+            window:SetDraggable( false )
+            Menu.ApplyButton:SetPos( fw / 2 - ApplyButtonWidth * 1.35, 0 )
             Menu.WorkshopButton:SetPos( ScrW() - (WorkshopButtonWidth + 110), 6 )
 
             Menu.ResetButton:SetPos( 5, ScrH() - 60 )
@@ -309,15 +328,15 @@ function Menu.Setup()
             Menu.ResetButton:SetVisible( false )
             Menu.AnimButton:SetVisible( false )
             Menu.WorkshopButton:SetVisible( false )
-            Menu.Right:SetVisible( false )
-            MainWindow:InvalidateLayout( false )
+            sheet:SetVisible( false )
+            window:InvalidateLayout( false )
             maxi_mode = 2
         else
-            MainWindow:SetSize( fw, fh )
-            MainWindow:Center()
-            MainWindow:SetDraggable( true )
+            window:SetSize( fw, fh )
+            window:Center()
+            window:SetDraggable( true )
 
-            Menu.ApplyButton:SetPos( fw - (ApplyButtonWidth + 480), 0 )
+            Menu.ApplyButton:SetPos( fw / 2 - ApplyButtonWidth * 1.35, 0 )
             Menu.ApplyButton:SetVisible( true )
             Menu.ResetButton:SetPos( 5, fh - 60 )
             Menu.AnimButton:SetPos( 20 + ResetButtonWidth, fh - 60 )
@@ -325,30 +344,58 @@ function Menu.Setup()
             Menu.AnimButton:SetVisible( true )
             Menu.WorkshopButton:SetPos( fw - (WorkshopButtonWidth + 110), 6 )
             Menu.WorkshopButton:SetVisible( true )
-            Menu.Right:SetVisible( true )
+            sheet:SetVisible( true )
             maxi_mode = 0
         end
     end
 
-    local ModelPreview = MainWindow:Add( "DModelPanel" )
-    ModelPreview:Dock( FILL )
-    ModelPreview:SetFOV( 36 ) -- PM FOV
-    ModelPreview:SetCamPos( vector_origin )
-    ModelPreview:SetDirectionalLight( BOX_RIGHT, Color( 255, 160, 80, 255 ) )
-    ModelPreview:SetDirectionalLight( BOX_LEFT, Color( 80, 160, 255, 255 ) )
-    ModelPreview:SetAmbientLight( Vector( -64, -64, -64 ) )
+    local ModelPreview =  divider:Add( "DModelPanel" )
+    divider:SetLeft( ModelPreview )
+
+    -- Undo defaults
+    ModelPreview:SetDirectionalLight( BOX_FRONT, nil )
+    ModelPreview:SetDirectionalLight( BOX_TOP, nil )
+    ModelPreview:SetAmbientLight( Color( 32, 32, 32 ) ) -- Still show the phong a little
+
     ModelPreview:SetAnimated( true )
-    ModelPreview:SetLookAt( Vector( -100, 0, -22 ) )
+    ModelPreview.Angles = angle_zero
+    ModelPreview:SetLookAt( Vector( 0, 0, 37 ) )
+    ModelPreview:SetCamPos( Vector( 100, 0, 59 ) )
     function ModelPreview.DefaultPos()
         if ( Menu.IsHandsTabActive() ) then return end
 
-        ModelPreview.Angles = Angle( angle_zero )
-        ModelPreview.Pos = Vector( -100, 0, -61 )
-        ModelPreview.AngleOffset = Angle( angle_zero )
+        ModelPreview.Angles = angle_zero
+        ModelPreview.Pos = vector_origin
+        ModelPreview.AngleOffset = angle_zero
     end
     ModelPreview.DefaultPos()
 
     function ModelPreview:PreDrawModel( mdlEnt )
+
+        self.LocalLights = {
+            -- left
+            {
+                type = MATERIAL_LIGHT_POINT,
+                pos = Vector( 0, -100, 72 + math.sin( CurTime() * 1 + 5 ) * 90 ) ,
+                color = Vector( 0.3, 0.6, 1 )
+            },
+            -- right
+            {
+                type = MATERIAL_LIGHT_POINT,
+                pos = Vector( 0, 100, 72 + math.sin( CurTime() * 1 + 9 ) * 90 ) ,
+                color = Vector( 1, 0.6, 0.3 )
+            },
+            -- front
+            {
+                type = MATERIAL_LIGHT_POINT,
+                pos = Vector( 100, 0, 60 + math.sin( CurTime() * 1 ) * 90 ),
+                color = Vector( 1, 1, 1 )
+            }
+        }
+
+        -- Use local lights as it produces much better looking rendering than the light box
+        render.SetLocalModelLights( self.LocalLights )
+
         if ( IsValid( self.EntityHands ) and Menu.IsHandsTabActive() ) then
             if ( not self.EntityHands:IsEffectActive( EF_BONEMERGE ) ) then
                 self.EntityHands:AddEffects( EF_BONEMERGE )
@@ -359,9 +406,11 @@ function Menu.Setup()
 
             return false
         end
+
+        return true
     end
 
-    Menu.WorkshopButton = MainWindow:Add( "DButton" )
+    Menu.WorkshopButton = window:Add( "DButton" )
     Menu.WorkshopButton:SetText( "#EPS.VisitAddonPage" )
     local Width, Height = Menu.WorkshopButton:GetTextSize()
     Menu.WorkshopButton:SetSize( Width + 15, 18 )
@@ -373,7 +422,7 @@ function Menu.Setup()
     Menu.ApplyButton = ModelPreview:Add( "DButton" )
     Menu.ApplyButton:SetText( "#EPS.ApplyPM" )
     local ApplyButtonWidth, ApplyButtonHeight = Menu.ApplyButton:GetTextSize()
-    Menu.ApplyButton:SetPos( fw - (ApplyButtonWidth + 480), 0 )
+    Menu.ApplyButton:SetPos( fw / 2 - ApplyButtonWidth * 1.35, 0 )
     Menu.ApplyButton:SetSize( ApplyButtonWidth + 30, 30 )
     Menu.ApplyButton.DoClick = LoadPlayerModel
 
@@ -394,1413 +443,1420 @@ function Menu.Setup()
         Menu.PlayPreviewAnimation( ModelPreview, Current.model )
     end
 
-    Menu.Right = MainWindow:Add( "DPropertySheet" )
-    Menu.Right:Dock( RIGHT )
-    Menu.Right:SetSize( 430, 0 )
-
-    Menu.Right.OnActiveTabChanged = function( self, oldTab, newTab )
+    sheet.OnActiveTabChanged = function( self, oldTab, newTab )
         Menu.UpdateFromConvars()
     end
 
-        local modeltab = Menu.Right:Add( "DPropertySheet" )
-        Menu.Right:AddSheet( "#EPS.Model", modeltab, "icon16/user.png" )
+------------------------------------------------------------------------------------
 
-        Menu.ModelFilter = modeltab:Add( "DTextEntry" )
-        Menu.ModelFilter:SetPlaceholderText( "#EPS.Search" )
-        Menu.ModelFilter:DockMargin( 8, 0, 8, 8 )
-        Menu.ModelFilter:Dock( TOP )
+    --
+    -- Model List
+    --
 
-        Menu.ModelFilter:SetUpdateOnType( true )
-        Menu.ModelFilter.OnValueChange = function() Menu.ModelPopulate() end
+    local modelListPnl = window:Add( "DPropertySheet" )
 
-            local ModelScroll = modeltab:Add( "DScrollPanel" )
-            modeltab:AddSheet( "#EPS.Model.Icons", ModelScroll, "icon16/application_view_tile.png" )
-            ModelScroll:DockMargin( 2, 0, 2, 2 )
-            ModelScroll:Dock( FILL )
+    Menu.ModelFilter = modelListPnl:Add( "DTextEntry" )
+    Menu.ModelFilter:SetPlaceholderText( "#EPS.Search" )
+    Menu.ModelFilter:DockMargin( 8, 0, 8, 8 )
+    Menu.ModelFilter:Dock( TOP )
 
-            local ModelIconLayout = ModelScroll:Add( "DIconLayout" )
-            ModelIconLayout:SetSpaceX( 2 )
-            ModelIconLayout:SetSpaceY( 2 )
-            ModelIconLayout:Dock( FILL )
+    Menu.ModelFilter:SetUpdateOnType( true )
+    Menu.ModelFilter.OnValueChange = function() Menu.ModelPopulate() end
 
-            local modelicons = { }
+        local ModelScroll = modelListPnl:Add( "DScrollPanel" )
+        modelListPnl:AddSheet( "#EPS.Model.Icons", ModelScroll, "icon16/application_view_tile.png" )
+        ModelScroll:DockMargin( 2, 0, 2, 2 )
+        ModelScroll:Dock( FILL )
+
+        local ModelIconLayout = ModelScroll:Add( "DIconLayout" )
+        ModelIconLayout:SetSpaceX( 2 )
+        ModelIconLayout:SetSpaceY( 2 )
+        ModelIconLayout:Dock( FILL )
+
+        local modelicons = { }
 
 
-            local ModelList = modeltab:Add( "DListView" )
-            modeltab:AddSheet( "#EPS.Model.Table", ModelList, "icon16/application_view_list.png" )
-            ModelList:DockMargin( 5, 0, 5, 5 )
-            ModelList:Dock( FILL )
-            ModelList:SetMultiSelect( false )
-            ModelList:AddColumn( "#EPS.Model.Table.Model" )
-            ModelList:AddColumn( "#EPS.Model.Table.Path" )
-            ModelList.OnRowSelected = function()
-                local sel = ModelList:GetSelected()
-                if not sel[1] then return end
-                local name = tostring( sel[1]:GetValue(1) )
-                Current.model = name
-                Current.bodygroups = "0"
-                Current.skin = 0
-                Current.flex = "0"
+        local ModelList = modelListPnl:Add( "DListView" )
+        modelListPnl:AddSheet( "#EPS.Model.Table", ModelList, "icon16/application_view_list.png" )
+        ModelList:DockMargin( 5, 0, 5, 5 )
+        ModelList:Dock( FILL )
+        ModelList:SetMultiSelect( false )
+        ModelList:AddColumn( "#EPS.Model.Table.Model" )
+        ModelList:AddColumn( "#EPS.Model.Table.Path" )
+        ModelList.OnRowSelected = function()
+            local sel = ModelList:GetSelected()
+            if not sel[1] then return end
+            local name = tostring( sel[1]:GetValue(1) )
+            Current.model = name
+            Current.bodygroups = "0"
+            Current.skin = 0
+            Current.flex = "0"
+            Current.hand = ""
+            Current.handgroups = "0"
+            Current.handskin = 0
+            Current.modelid = FindModelID(name)
+            Menu.UpdateFromConvars()
+        end
+
+        local AllModels = player_manager.AllValidModels()
+
+        function Menu.ModelPopulate()
+
+            ModelIconLayout:Clear()
+            ModelList:Clear()
+
+            local ModelFilter = Menu.ModelFilter:GetValue() or nil
+
+            for name, model in SortedPairs( AllModels ) do
+
+                if IsInFilter( name, ModelFilter ) then
+                    if GetConVar( "cl_playermodel_selector_hide_defaults" ):GetBool() and DefaultPlayerModels[model] then continue end -- Testing, may have bugs.
+                    if GetConVar( "cl_playermodel_selector_ignorehands" ):GetBool() and player_manager.TranslatePlayerHands(name).model == model then continue end -- No
+                    local icon = ModelIconLayout:Add( "SpawnIcon" )
+                    icon:SetSize( 64, 64 )
+                    --icon:InvalidateLayout( true )
+                    icon:SetModel( model )
+                    icon:SetTooltip( name )
+                    table.insert( modelicons, icon )
+                    icon.DoClick = function()
+                        Current.model = name
+                        Current.bodygroups = "0"
+                        Current.skin = 0
+                        Current.flex = "0"
+                        Current.hand = ""
+                        Current.handgroups = "0"
+                        Current.handskin = 0
+                        Current.modelid = FindModelID(name)
+                        Menu.UpdateFromConvars()
+                    end
+
+                    ModelList:AddLine( name, model )
+
+                end
+
+            end
+
+        end
+
+        Menu.ModelPopulate()
+
+    sheet:AddSheet( "#EPS.Model", modelListPnl, "icon16/user.png" )
+-------------------------------------------------------------
+    local handtab = sheet:Add( "DPropertySheet" )
+
+    handtab.IsHandsTab = true
+
+        Menu.HandsFilter = handtab:Add( "DTextEntry" )
+        Menu.HandsFilter:SetPlaceholderText( "#EPS.Search" )
+        Menu.HandsFilter:DockMargin( 8, 0, 8, 4 )
+        Menu.HandsFilter:Dock( TOP )
+        Menu.HandsFilter:SetUpdateOnType( true )
+        Menu.HandsFilter.OnValueChange = function() Menu.HandsPopulate() end
+
+        local ModelScroll = handtab:Add( "DScrollPanel" )
+        handtab:AddSheet( "#EPS.Hands.Icons", ModelScroll, "icon16/application_view_tile.png" )
+        ModelScroll:DockMargin( 2, 0, 2, 2 )
+        ModelScroll:Dock( FILL )
+
+        local ModelIconLayout = ModelScroll:Add( "DIconLayout" )
+        ModelIconLayout:SetSpaceX( 2 )
+        ModelIconLayout:SetSpaceY( 2 )
+        ModelIconLayout:Dock( FILL )
+
+        local modelicons_forhands = { }
+
+
+        local ModelList = handtab:Add( "DListView" )
+        handtab:AddSheet( "#EPS.Hands.Table", ModelList, "icon16/application_view_list.png" )
+        ModelList:DockMargin( 5, 0, 5, 5 )
+        ModelList:Dock( FILL )
+        ModelList:SetMultiSelect( false )
+        ModelList:AddColumn( "#EPS.Hands.Table.Model" )
+        ModelList:AddColumn( "#EPS.Hands.Table.Path" )
+        ModelList.OnRowSelected = function()
+            local sel = ModelList:GetSelected()
+            if not sel[1] then return end
+            local name = tostring( sel[1]:GetValue(1) )
+            Current.hand = name
+            Current.handgroups = "0"
+            Current.handskin = 0
+            Menu.UpdateFromConvars()
+        end
+
+        local AllModels = player_manager.AllValidModels()
+        --AllModels["AbsolutelyNone"] = ""
+        --PrintTable(AllModels)
+
+        function Menu.HandsPopulate()
+
+            ModelIconLayout:Clear()
+            ModelList:Clear()
+
+            local ModelFilter = Menu.HandsFilter:GetValue() or nil
+
+            local icon = ModelIconLayout:Add( "SpawnIcon" )
+            icon:SetSize( 64, 64 )
+            icon:SetSpawnIcon( "icon64/playermodel.png" )
+            icon:SetTooltip( "#EPS.Hands.UsePM" )
+            icon.DoClick = function()
                 Current.hand = ""
                 Current.handgroups = "0"
                 Current.handskin = 0
-                Current.modelid = FindModelID(name)
                 Menu.UpdateFromConvars()
             end
 
-            local AllModels = player_manager.AllValidModels()
+            local exister = {}
 
-            function Menu.ModelPopulate()
+            for name, model in SortedPairs( AllModels ) do
 
-                ModelIconLayout:Clear()
-                ModelList:Clear()
+                if IsInFilter( name, ModelFilter ) then
+                    local result = player_manager.TranslatePlayerHands( name )
+                    if exister[result.model:lower()] then
+                        continue
+                    else
+                        exister[result.model:lower()] = true
+                    end
+                    local icon = ModelIconLayout:Add( "SpawnIcon" )
+                    icon:SetSize( 64, 64 )
+                    --icon:InvalidateLayout( true )
+                    icon:SetModel( "models/weapons/c_arms.mdl" )
+                    icon:SetTooltip( name .. "\n" .. result.model )
+                    icon.ResultList = result
 
-                local ModelFilter = Menu.ModelFilter:GetValue() or nil
+                    function icon:Paint( w, h )
+                        return true
+                    end
+                    table.insert( modelicons_forhands, icon )
 
-                for name, model in SortedPairs( AllModels ) do
+                    function icon:MakeHandIcon()
+                        if not self.ResultList then print("EPS Hands: Result list missing.") return end
 
-                    if IsInFilter( name, ModelFilter ) then
-                        if GetConVar( "cl_playermodel_selector_hide_defaults" ):GetBool() and DefaultPlayerModels[model] then continue end -- Testing, may have bugs.
-                        if GetConVar( "cl_playermodel_selector_ignorehands" ):GetBool() and player_manager.TranslatePlayerHands(name).model == model then continue end -- No
-                        local icon = ModelIconLayout:Add( "SpawnIcon" )
-                        icon:SetSize( 64, 64 )
-                        --icon:InvalidateLayout( true )
-                        icon:SetModel( model )
-                        icon:SetTooltip( name )
-                        table.insert( modelicons, icon )
-                        icon.DoClick = function()
-                            Current.model = name
-                            Current.bodygroups = "0"
-                            Current.skin = 0
-                            Current.flex = "0"
-                            Current.hand = ""
-                            Current.handgroups = "0"
-                            Current.handskin = 0
-                            Current.modelid = FindModelID(name)
-                            Menu.UpdateFromConvars()
-                        end
+                        local CL_FISTS		= ClientsideModel("models/weapons/c_arms.mdl")
+                        local CL_REALHANDS	= ClientsideModel( self.ResultList.model, RENDERGROUP_BOTH )
 
-                        ModelList:AddLine( name, model )
+                        CL_FISTS:SetNoDraw( true )
+                        CL_FISTS:SetPos( vector_origin )
+                        CL_FISTS:SetAngles( angle_zero )
+                        CL_REALHANDS:SetNoDraw( true )
 
+                        CL_FISTS:ResetSequence( CL_FISTS:LookupSequence( "fists_idle_01" ) )
+
+                        CL_REALHANDS:AddEffects( EF_BONEMERGE )
+                        CL_REALHANDS:SetBodyGroups(result.body or 0)
+                        CL_REALHANDS:SetSkin(isnumber(result.skin) and result.skin or 0)
+
+                        CL_REALHANDS:SetParent( CL_FISTS )
+
+                        local cam_pos = vector_origin
+                        local cam_ang = Angle( 6, -16.9, 0 )
+                        local cam_fov = 17
+
+                        render.PushRenderTarget( HandIconGenerator )
+                            render.OverrideDepthEnable( true, true )
+                            render.SetWriteDepthToDestAlpha( false )
+                            render.SuppressEngineLighting( true )
+
+                            local CL_SHIRT = {
+                                {
+                                    type = MATERIAL_LIGHT_POINT,
+                                    color = Vector( 1, 1, 1 ) * 1,
+                                    pos = Vector( 0, -48, 32 ),
+                                },
+                                {
+                                    type = MATERIAL_LIGHT_POINT,
+                                    color = Vector( -1, -1, -1 ) * 1,
+                                    pos = Vector( 0, 32, -64 ),
+                                },
+                            }
+
+                            render.SetLocalModelLights(CL_SHIRT)
+                            -- render.Clear(0, 0, 0, 0, true, true)
+                            render.Clear(0, 0, 0, 0)
+                            render.ClearDepth( true )
+                            render.OverrideAlphaWriteEnable( true, true )
+
+
+                                -- rendering twice to get good alpha
+                            render.SetBlend(1)
+                            render.SetColorModulation(1, 1, 1)
+                            render.MaterialOverride(matshiny)
+                            render.OverrideColorWriteEnable(true, false)
+
+                            cam.Start3D( cam_pos, cam_ang, cam_fov, 0, 0, 64, 64, 0.1, 1000 )
+                                CL_FISTS:SetupBones()
+                                CL_REALHANDS:SetupBones()
+                                CL_REALHANDS:DrawModel( STUDIO_TWOPASS )
+                            cam.End3D()
+
+                            render.OverrideColorWriteEnable(false, false)
+                            render.MaterialOverride()
+
+
+                            render.SetWriteDepthToDestAlpha( true )
+                            render.OverrideBlend( true, BLEND_ONE, BLEND_ZERO, BLENDFUNC_ADD, BLEND_ZERO, BLEND_ONE, BLENDFUNC_ADD )
+                            cam.Start3D( cam_pos, cam_ang, cam_fov, 0, 0, 64, 64, 0.1, 1000 )
+                                CL_FISTS:SetupBones()
+                                CL_REALHANDS:SetupBones()
+                                CL_REALHANDS:DrawModel( STUDIO_TWOPASS )
+                            cam.End3D()
+
+                            render.MaterialOverride()
+                            render.SetWriteDepthToDestAlpha( false )
+
+                            render.OverrideBlend( false )
+                            render.SuppressEngineLighting(false)
+
+                            local HandBodygroups = CL_REALHANDS:GetBodyGroups()
+                            for i = 0, #HandBodygroups - 1 do
+                                if CL_REALHANDS:GetBodygroupCount(i) < 2 then continue end
+                                cam.Start2D()
+                                    surface.SetDrawColor( 255, 255, 255, 255 )
+                                    surface.SetMaterial(hasbgs)
+                                    surface.DrawTexturedRect(0, 0, 64, 64)
+                                cam.End2D()
+                                break
+                            end
+                            print( "Generating " .. result.model:StripExtension() )
+                            local data = render.Capture( {
+                                format = "png",
+                                x = 0,
+                                y = 0,
+                                w = 64,
+                                h = 64
+                            } )
+
+                            if not file.Exists("eps_hands", "DATA") then
+                                file.CreateDir("eps_hands")
+                            end
+
+                            local EXPLOSION = string.Explode( "/", result.model:StripExtension(), false )
+                            EXPLOSION[#EXPLOSION] = nil
+                            EXPLOSION = table.concat( EXPLOSION, "/" )
+                            file.CreateDir( "eps_hands/" .. EXPLOSION )
+                            local fullpath = "eps_hands/" .. result.model:StripExtension() .. ".png"
+                            file.Write( fullpath, data )
+
+                            render.OverrideAlphaWriteEnable( false )
+                            render.SuppressEngineLighting( false )
+                            render.OverrideDepthEnable( false )
+                        render.PopRenderTarget()
+                        --icon:SetModel("models/kleiner_animations.mdl")
+                        icon:SetIcon( "data/eps_hands/" .. result.model:StripExtension() .. ".png" )
+                        --icon:SetTooltip( name .. "\n" .. result.model )
+
+                        --local tab = {}
+                        --tab.ent		= CL_REALHANDS
+                        --tab.cam_pos = Vector( 0, 0, 0 )
+                        --tab.cam_ang = Angle( 4, -18, 0 )
+                        --tab.cam_fov = 20
+
+                        --self:RebuildSpawnIconEx( tab )
+
+                        CL_FISTS:Remove()
+                        CL_REALHANDS:Remove()
                     end
 
-                end
-
-            end
-
-            Menu.ModelPopulate()
-
--------------------------------------------------------------
-        local handtab = Menu.Right:Add( "DPropertySheet" )
-        local htb = Menu.Right:AddSheet( "#EPS.Hands", handtab, "icon16/attach.png" )
-
-        htb.Tab.IsHandsTab = true
-
-            Menu.HandsFilter = handtab:Add( "DTextEntry" )
-            Menu.HandsFilter:SetPlaceholderText( "#EPS.Search" )
-            Menu.HandsFilter:DockMargin( 8, 0, 8, 4 )
-            Menu.HandsFilter:Dock( TOP )
-            Menu.HandsFilter:SetUpdateOnType( true )
-            Menu.HandsFilter.OnValueChange = function() Menu.HandsPopulate() end
-
-            local ModelScroll = handtab:Add( "DScrollPanel" )
-            handtab:AddSheet( "#EPS.Hands.Icons", ModelScroll, "icon16/application_view_tile.png" )
-            ModelScroll:DockMargin( 2, 0, 2, 2 )
-            ModelScroll:Dock( FILL )
-
-            local ModelIconLayout = ModelScroll:Add( "DIconLayout" )
-            ModelIconLayout:SetSpaceX( 2 )
-            ModelIconLayout:SetSpaceY( 2 )
-            ModelIconLayout:Dock( FILL )
-
-            local modelicons_forhands = { }
-
-
-            local ModelList = handtab:Add( "DListView" )
-            handtab:AddSheet( "#EPS.Hands.Table", ModelList, "icon16/application_view_list.png" )
-            ModelList:DockMargin( 5, 0, 5, 5 )
-            ModelList:Dock( FILL )
-            ModelList:SetMultiSelect( false )
-            ModelList:AddColumn( "#EPS.Hands.Table.Model" )
-            ModelList:AddColumn( "#EPS.Hands.Table.Path" )
-            ModelList.OnRowSelected = function()
-                local sel = ModelList:GetSelected()
-                if not sel[1] then return end
-                local name = tostring( sel[1]:GetValue(1) )
-                Current.hand = name
-                Current.handgroups = "0"
-                Current.handskin = 0
-                Menu.UpdateFromConvars()
-            end
-
-            local AllModels = player_manager.AllValidModels()
-            --AllModels["AbsolutelyNone"] = ""
-            --PrintTable(AllModels)
-
-            function Menu.HandsPopulate()
-
-                ModelIconLayout:Clear()
-                ModelList:Clear()
-
-                local ModelFilter = Menu.HandsFilter:GetValue() or nil
-
-                local icon = ModelIconLayout:Add( "SpawnIcon" )
-                icon:SetSize( 64, 64 )
-                icon:SetSpawnIcon( "icon64/playermodel.png" )
-                icon:SetTooltip( "#EPS.Hands.UsePM" )
-                icon.DoClick = function()
-                    Current.hand = ""
-                    Current.handgroups = "0"
-                    Current.handskin = 0
-                    Menu.UpdateFromConvars()
-                end
-
-                local exister = {}
-
-                for name, model in SortedPairs( AllModels ) do
-
-                    if IsInFilter( name, ModelFilter ) then
-                        local result = player_manager.TranslatePlayerHands( name )
-                        if exister[result.model:lower()] then
-                            continue
-                        else
-                            exister[result.model:lower()] = true
+                    -- Make a pretty ass icon
+                    if not file.Exists( "eps_hands/" .. result.model:StripExtension() .. ".png", "DATA" ) then
+                        print("IT DOESN'T EXIST", "eps_hands/" .. result.model:StripExtension() .. ".png")
+                        if IsValid(icon) then
+                            icon:MakeHandIcon()
                         end
-                        local icon = ModelIconLayout:Add( "SpawnIcon" )
-                        icon:SetSize( 64, 64 )
-                        --icon:InvalidateLayout( true )
-                        icon:SetModel( "models/weapons/c_arms.mdl" )
-                        icon:SetTooltip( name .. "\n" .. result.model )
-                        icon.ResultList = result
-
-                        function icon:Paint( w, h )
-                            return true
+                    else
+                        --icon:SetModel("models/kleiner_animations.mdl")
+                        icon:SetIcon( "data/eps_hands/" .. result.model:StripExtension() .. ".png" )
+                        --icon:SetTooltip( name .. "\n" .. result.model )
+                    end
+                    icon.DoClick = function()
+                        Current.hand = name
+                        Current.handgroups = "0"
+                        Current.handskin = 0
+                        Menu.UpdateFromConvars()
+                    end
+                    icon.DoRightClick = function()
+                        if IsValid(icon) then
+                            icon:MakeHandIcon()
                         end
-                        table.insert( modelicons_forhands, icon )
-
-                        function icon:MakeHandIcon()
-                            if not self.ResultList then print("EPS Hands: Result list missing.") return end
-
-                            local CL_FISTS		= ClientsideModel("models/weapons/c_arms.mdl")
-                            local CL_REALHANDS	= ClientsideModel( self.ResultList.model, RENDERGROUP_BOTH )
-
-                            CL_FISTS:SetNoDraw( true )
-                            CL_FISTS:SetPos( vector_origin )
-                            CL_FISTS:SetAngles( angle_zero )
-                            CL_REALHANDS:SetNoDraw( true )
-
-                            CL_FISTS:ResetSequence( CL_FISTS:LookupSequence( "fists_idle_01" ) )
-
-                            CL_REALHANDS:AddEffects( EF_BONEMERGE )
-                            CL_REALHANDS:SetBodyGroups(result.body or 0)
-                            CL_REALHANDS:SetSkin(isnumber(result.skin) and result.skin or 0)
-
-                            CL_REALHANDS:SetParent( CL_FISTS )
-
-                            local cam_pos = Vector( 0, 0, 0 )
-                            local cam_ang = Angle( 6, -16.9, 0 )
-                            local cam_fov = 17
-
-                            render.PushRenderTarget( HandIconGenerator )
-                                render.OverrideDepthEnable( true, true )
-                                render.SetWriteDepthToDestAlpha( false )
-                                render.SuppressEngineLighting( true )
-
-                                local CL_SHIRT = {
-                                    {
-                                        type = MATERIAL_LIGHT_POINT,
-                                        color = Vector( 1, 1, 1 ) * 1,
-                                        pos = Vector( 0, -48, 32 ),
-                                    },
-                                    {
-                                        type = MATERIAL_LIGHT_POINT,
-                                        color = Vector( -1, -1, -1 ) * 1,
-                                        pos = Vector( 0, 32, -64 ),
-                                    },
-                                }
-
-                                render.SetLocalModelLights(CL_SHIRT)
-                                -- render.Clear(0, 0, 0, 0, true, true)
-                                render.Clear(0, 0, 0, 0)
-                                render.ClearDepth( true )
-                                render.OverrideAlphaWriteEnable( true, true )
-
-
-                                    -- rendering twice to get good alpha
-                                render.SetBlend(1)
-                                render.SetColorModulation(1, 1, 1)
-                                render.MaterialOverride(matshiny)
-                                render.OverrideColorWriteEnable(true, false)
-
-                                cam.Start3D( cam_pos, cam_ang, cam_fov, 0, 0, 64, 64, 0.1, 1000 )
-                                    CL_FISTS:SetupBones()
-                                    CL_REALHANDS:SetupBones()
-                                    CL_REALHANDS:DrawModel( STUDIO_TWOPASS )
-                                cam.End3D()
-
-                                render.OverrideColorWriteEnable(false, false)
-                                render.MaterialOverride()
-
-
-                                render.SetWriteDepthToDestAlpha( true )
-                                render.OverrideBlend( true, BLEND_ONE, BLEND_ZERO, BLENDFUNC_ADD, BLEND_ZERO, BLEND_ONE, BLENDFUNC_ADD )
-                                cam.Start3D( cam_pos, cam_ang, cam_fov, 0, 0, 64, 64, 0.1, 1000 )
-                                    CL_FISTS:SetupBones()
-                                    CL_REALHANDS:SetupBones()
-                                    CL_REALHANDS:DrawModel( STUDIO_TWOPASS )
-                                cam.End3D()
-
-                                render.MaterialOverride()
-                                render.SetWriteDepthToDestAlpha( false )
-
-                                render.OverrideBlend( false )
-                                render.SuppressEngineLighting(false)
-
-                                local HandBodygroups = CL_REALHANDS:GetBodyGroups()
-                                for i = 0, #HandBodygroups - 1 do
-                                    if CL_REALHANDS:GetBodygroupCount(i) < 2 then continue end
-                                    cam.Start2D()
-                                        surface.SetDrawColor( 255, 255, 255, 255 )
-                                        surface.SetMaterial(hasbgs)
-                                        surface.DrawTexturedRect(0, 0, 64, 64)
-                                    cam.End2D()
-                                    break
-                                end
-                                print( "Generating " .. result.model:StripExtension() )
-                                local data = render.Capture( {
-                                    format = "png",
-                                    x = 0,
-                                    y = 0,
-                                    w = 64,
-                                    h = 64
-                                } )
-
-                                if not file.Exists("eps_hands", "DATA") then
-                                    file.CreateDir("eps_hands")
-                                end
-
-                                local EXPLOSION = string.Explode( "/", result.model:StripExtension(), false )
-                                EXPLOSION[#EXPLOSION] = nil
-                                EXPLOSION = table.concat( EXPLOSION, "/" )
-                                file.CreateDir( "eps_hands/" .. EXPLOSION )
-                                local fullpath = "eps_hands/" .. result.model:StripExtension() .. ".png"
-                                file.Write( fullpath, data )
-
-                                render.OverrideAlphaWriteEnable( false )
-                                render.SuppressEngineLighting( false )
-                                render.OverrideDepthEnable( false )
-                            render.PopRenderTarget()
-                            --icon:SetModel("models/kleiner_animations.mdl")
-                            icon:SetIcon( "data/eps_hands/" .. result.model:StripExtension() .. ".png" )
-                            --icon:SetTooltip( name .. "\n" .. result.model )
-
-                            --local tab = {}
-                            --tab.ent		= CL_REALHANDS
-                            --tab.cam_pos = Vector( 0, 0, 0 )
-                            --tab.cam_ang = Angle( 4, -18, 0 )
-                            --tab.cam_fov = 20
-
-                            --self:RebuildSpawnIconEx( tab )
-
-                            CL_FISTS:Remove()
-                            CL_REALHANDS:Remove()
-                        end
-
-                        -- Make a pretty ass icon
-                        if not file.Exists( "eps_hands/" .. result.model:StripExtension() .. ".png", "DATA" ) then
-                            print("IT DOESN'T EXIST", "eps_hands/" .. result.model:StripExtension() .. ".png")
-                            if IsValid(icon) then
-                                icon:MakeHandIcon()
-                            end
-                        else
-                            --icon:SetModel("models/kleiner_animations.mdl")
-                            icon:SetIcon( "data/eps_hands/" .. result.model:StripExtension() .. ".png" )
-                            --icon:SetTooltip( name .. "\n" .. result.model )
-                        end
-                        icon.DoClick = function()
-                            Current.hand = name
-                            Current.handgroups = "0"
-                            Current.handskin = 0
-                            Menu.UpdateFromConvars()
-                        end
-                        icon.DoRightClick = function()
-                            if IsValid(icon) then
-                                icon:MakeHandIcon()
-                            end
-                        end
-
-                        ModelList:AddLine( name, model )
-
                     end
 
+                    ModelList:AddLine( name, model )
+
                 end
 
             end
 
-            Menu.HandsPopulate()
+        end
+
+        Menu.HandsPopulate()
+        sheet:AddSheet( "#EPS.Hands", handtab, "icon16/attach.png" )
 --------------------------------------------------------
 
-        local favorites = Menu.Right:Add( "DPanel" )
-        Menu.Right:AddSheet( "#EPS.Favorites", favorites, "icon16/star.png" )
-        favorites:DockPadding( 8, 8, 8, 8 )
+    local favorites = sheet:Add( "DPanel" )
+    sheet:AddSheet( "#EPS.Favorites", favorites, "icon16/star.png" )
+    favorites:DockPadding( 8, 8, 8, 8 )
 
-        local FavList = favorites:Add( "DListView" )
-        FavList:Dock( FILL )
-        FavList:SetMultiSelect( true )
-        FavList:AddColumn( "#EPS.Favorites" )
-        FavList:AddColumn( "#EPS.Favorites.Model" )
-        FavList:AddColumn( "#EPS.Favorites.Bodygroups" )
-        FavList:AddColumn( "#EPS.Workshop.Id" ):SetFixedWidth( 75 )
-        FavList.DoDoubleClick = function( id, sel )
-            local name = tostring( FavList:GetLine( sel ):GetValue( 1 ) )
-            if istable( Favorites[name] ) then
-                Current.model = Favorites[name].model
-                Current.bodygroups = Favorites[name].bodygroups
-                Current.skin = Favorites[name].skin
-                Current.hand = Favorites[name].hand
-                Current.handgroups = Favorites[name].handgroups
-                Current.handskin = Favorites[name].handskin
-                Current.modelid = Favorites[name].wsid
-                Menu.UpdateFromConvars()
-            end
+    local FavList = favorites:Add( "DListView" )
+    FavList:Dock( FILL )
+    FavList:SetMultiSelect( true )
+    FavList:AddColumn( "#EPS.Favorites" )
+    FavList:AddColumn( "#EPS.Favorites.Model" )
+    FavList:AddColumn( "#EPS.Favorites.Bodygroups" )
+    FavList:AddColumn( "#EPS.Workshop.Id" ):SetFixedWidth( 75 )
+    FavList.DoDoubleClick = function( id, sel )
+        local name = tostring( FavList:GetLine( sel ):GetValue( 1 ) )
+        if istable( Favorites[name] ) then
+            Current.model = Favorites[name].model
+            Current.bodygroups = Favorites[name].bodygroups
+            Current.skin = Favorites[name].skin
+            Current.hand = Favorites[name].hand
+            Current.handgroups = Favorites[name].handgroups
+            Current.handskin = Favorites[name].handskin
+            Current.modelid = Favorites[name].wsid
+            Menu.UpdateFromConvars()
         end
+    end
 
-        function Menu.FavPopulate()
-            FavList:Clear()
-            for k, v in pairs( Favorites ) do
-                FavList:AddLine( k, v.model, v.bodygroups, v.wsid )
-            end
-            FavList:SortByColumn( 1 )
+    function Menu.FavPopulate()
+        FavList:Clear()
+        for k, v in pairs( Favorites ) do
+            FavList:AddLine( k, v.model, v.bodygroups, v.wsid )
         end
+        FavList:SortByColumn( 1 )
+    end
+    Menu.FavPopulate()
+
+    local b = favorites:Add( "DButton" )
+    b:Dock( TOP )
+    b:SetHeight( 25 )
+    b:DockMargin( 0, 0, 0, 10 )
+    b:SetText( "#EPS.Favorites.LoadFavorite" )
+    b.DoClick = function()
+        local sel = FavList:GetSelected()
+        if not sel[1] then return end
+        local name = tostring( sel[1]:GetValue(1) )
+        if istable( Favorites[name] ) then
+            Current.model = Favorites[name].model
+            Current.bodygroups = Favorites[name].bodygroups
+            Current.skin = Favorites[name].skin
+            Current.hand = Favorites[name].hand
+            Current.handgroups = Favorites[name].handgroups
+            Current.handskin = Favorites[name].handskin
+            Current.modelid = Favorites[name].wsid
+            Menu.UpdateFromConvars()
+        end
+    end
+
+    local t = favorites:Add( "DLabel" )
+    t:Dock( BOTTOM )
+    t:SetAutoStretchVertical( true )
+    t:SetText( "#EPS.Favorites.Desc" )
+    t:SetDark( true )
+    t:SetWrap( true )
+
+    local control = favorites:Add( "DPanel" )
+    control:Dock( BOTTOM )
+    control:DockMargin( 0, 10, 0, 0 )
+    control:SetSize( 0, 60 )
+    control:SetPaintBackground( false )
+
+    function Menu.FavAdd( name )
+        Favorites[name] = { }
+        Favorites[name].model = Current.model
+        Favorites[name].skin = Current.skin
+        Favorites[name].bodygroups = Current.bodygroups
+        Favorites[name].hand = Current.hand
+        Favorites[name].handgroups = Current.handgroups
+        Favorites[name].handskin = Current.handskin
+        Favorites[name].wsid = FindModelID(Current.model) or Current.modelid or ""
+        file.Write( "lf_playermodel_selector/cl_favorites.txt", util.TableToJSON( Favorites, true ) )
         Menu.FavPopulate()
+    end
 
-        local b = favorites:Add( "DButton" )
-        b:Dock( TOP )
-        b:SetHeight( 25 )
-        b:DockMargin( 0, 0, 0, 10 )
-        b:SetText( "#EPS.Favorites.LoadFavorite" )
-        b.DoClick = function()
-            local sel = FavList:GetSelected()
-            if not sel[1] then return end
-            local name = tostring( sel[1]:GetValue(1) )
-            if istable( Favorites[name] ) then
-                Current.model = Favorites[name].model
-                Current.bodygroups = Favorites[name].bodygroups
-                Current.skin = Favorites[name].skin
-                Current.hand = Favorites[name].hand
-                Current.handgroups = Favorites[name].handgroups
-                Current.handskin = Favorites[name].handskin
-                Current.modelid = Favorites[name].wsid
-                Menu.UpdateFromConvars()
+    local FavEntry = control:Add( "DTextEntry" )
+    FavEntry:SetPos( 0, 0 )
+    FavEntry:SetSize( 395, 20 )
+
+    local b = control:Add( "DButton" )
+    b:SetPos( 0, 30 )
+    b:SetSize( 125, 20 )
+    b:SetText( "#EPS.Favorites.AddNewFavorite" )
+    b.DoClick = function()
+        local name = FavEntry:GetValue()
+        if name == "" then return end
+        Menu.FavAdd( name )
+    end
+
+    local b = control:Add( "DButton" )
+    b:SetPos( 135, 30 )
+    b:SetSize( 125, 20 )
+    b:SetText( "#EPS.Favorites.ReplaceSelected" )
+    b.DoClick = function()
+        local sel = FavList:GetSelected()
+        if sel[2] then return end
+        if not sel[1] then return end
+        local name = tostring( sel[1]:GetValue(1) )
+        Menu.FavAdd( name )
+    end
+
+    local b = control:Add( "DButton" )
+    b:SetPos( 270, 30 )
+    b:SetSize( 125, 20 )
+    b:SetText( "#EPS.Favorites.DeleteAllSelected" )
+    b.DoClick = function()
+        local sel = FavList:GetSelected()
+        for k, v in pairs( sel ) do
+            local name = tostring( v:GetValue(1) )
+            Favorites[name] = nil
+        end
+        file.Write( "lf_playermodel_selector/cl_favorites.txt", util.TableToJSON( Favorites, true ) )
+        Menu.FavPopulate()
+    end
+
+        ---------------------------------------------------------------------------------
+    if GetConVar("sv_playermodel_selector_workshop_enabled"):GetBool() then
+        local shoptab = sheet:Add( "DPropertySheet" )
+        sheet:AddSheet( "#EPS.Workshop", shoptab, "icon16/wrench.png" )
+
+            Menu.ShopFilter = shoptab:Add( "DTextEntry" )
+            Menu.ShopFilter:SetPlaceholderText( "#EPS.Search" )
+            Menu.ShopFilter:DockMargin( 8, 0, 8, 4 )
+            Menu.ShopFilter:Dock( TOP )
+            Menu.ShopFilter:SetUpdateOnType( true )
+            Menu.ShopFilter.OnValueChange = function()
+                Menu.ShopPopulate()
+                if LocalPlayer():IsAdmin() then Menu.QueuePopulate() end
             end
+
+
+            local HistoryScroll = shoptab:Add( "DScrollPanel" )
+            shoptab:AddSheet( "#EPS.Model.Icons", HistoryScroll, "icon16/application_view_tile.png" )
+            HistoryScroll:DockMargin( 2, 0, 2, 2 )
+            HistoryScroll:Dock( FILL )
+
+            local HistoryIconLayout = HistoryScroll:Add( "DIconLayout" )
+            HistoryIconLayout:SetSpaceX( 2 )
+            HistoryIconLayout:SetSpaceY( 2 )
+            HistoryIconLayout:Dock( FILL )
+
+            local HistoryList = shoptab:Add( "DListView" )
+            shoptab:AddSheet( "#EPS.Hands.Table", HistoryList, "icon16/application_view_list.png" )
+            HistoryList:DockMargin( 5, 0, 5, 5 )
+            HistoryList:Dock( FILL )
+            HistoryList:SetMultiSelect( false )
+            HistoryList:AddColumn( "#EPS.Hands.Table.Model" )
+            HistoryList:AddColumn( "#EPS.Workshop.Id" ):SetFixedWidth( 75 )
+            HistoryList.OnRowRightClick =  function( lst, index, pnl )
+                local options = DermaMenu(false, icon)
+                local id = pnl:GetColumnText( 2 )
+                options:AddOption( "Request Addon", function() RequestAddon(id) end):SetIcon( "icon16/add.png" )
+                if LocalPlayer():IsAdmin() then options:AddOption( "Force Add Addon", function()
+                    RequestAddon( id, EPS_APPROVE)
+                end):SetIcon( "icon16/shield.png" ) end
+                options:AddSpacer()
+                options:AddOption( "Open Workshop Page", function() steamworks.ViewFile( id ) end):SetIcon( "icon16/world.png" )
+                options:AddOption( "Copy to Clipboard", function() SetClipboardText( id ) end):SetIcon( "icon16/page.png" )
+                options:AddSpacer()
+                options:AddOption( "Remove from History", function()
+                    History[id] = nil
+                    Menu.ShopPopulate()
+                    file.Write( "lf_playermodel_selector/cl_history.txt", util.TableToJSON(History, true) )
+                end):SetIcon( "icon16/delete.png" )
+                options:Open()
+            end
+            HistoryList.DoDoubleClick = function( panel, rowIndex, row )
+                RequestAddon( row:GetValue( 2 ) )
+            end
+
+            if LocalPlayer():IsAdmin() then
+
+                local QueueList = shoptab:Add( "DListView" )
+                shoptab:AddSheet( "Requests", QueueList, "icon16/script_edit.png" )
+                QueueList:DockMargin( 5, 0, 5, 5 )
+                QueueList:Dock( FILL )
+                QueueList:SetMultiSelect( false )
+                QueueList:AddColumn( "#EPS.Hands.Table.Model" )
+                QueueList:AddColumn( "Player" ):SetFixedWidth( 100 )
+                QueueList:AddColumn( "#EPS.Workshop.Id" ):SetFixedWidth( 75 )
+                QueueList:AddColumn( "plyID" ):SetFixedWidth( 0 )
+                QueueList:AddColumn( "" ):SetFixedWidth( 16 )
+
+                QueueList.OnRowRightClick =  function( lst, index, pnl )
+                local options = DermaMenu(false, icon)
+                local id = pnl:GetColumnText( 3 )
+                options:AddOption( "Approve Addon", function() RequestAddon(id, EPS_APPROVE) end):SetIcon( "icon16/add.png" )
+                options:AddSpacer()
+                options:AddOption( "Open Workshop Page", function() steamworks.ViewFile( id ) end):SetIcon( "icon16/world.png" )
+                options:AddOption( "Copy to Clipboard", function() SetClipboardText( id ) end):SetIcon( "icon16/page.png" )
+                options:AddOption( "Copy Player ID", function() SetClipboardText( pnl:GetColumnText( 4 ) ) end):SetIcon( "icon16/user.png" )
+                options:AddSpacer()
+                options:AddOption( "Deny Addon", function() RequestAddon(id, EPS_DENY) end):SetIcon( "icon16/delete.png" )
+                options:Open()
+            end
+
+                function Menu.QueuePopulate()
+                    QueueList:Clear()
+
+                    local ShopFilter = Menu.ShopFilter:GetValue() or nil
+                    for k, v in pairs(Queue) do
+                        if IsInFilter( v.title .. k .. v.ply:GetName(), ShopFilter ) then
+                            local line = QueueList:AddLine( v.title, v.ply:GetName(), k, v.ply:SteamID64() )
+                            local tooltip = v.title .. "\nAddon Size: " .. math.Round( v.size / 1000000, 2) .. " Mb\nRequested by " .. v.ply:GetName() .. " (" .. v.ply:SteamID64() .. ")"
+                            local icon = vgui.Create("DImage")
+                            icon:SetImage("icon16/tick.png")
+                            icon:SetKeepAspect(true)
+                            icon:SetSelectable(true)
+                            icon:SetParent(line)
+                            if v["unpm"] then
+                                tooltip = tooltip .. "\nAddon may not have valid playermodel."
+                                icon:SetImage("icon16/error.png")
+                            end
+                            if v["oversize"] then
+                                tooltip = tooltip .. "\nAddon is oversized."
+                                icon:SetImage("icon16/error.png")
+                            end
+                            if not table.IsEmpty(v["content_descriptors"]) then
+                                tooltip = tooltip .. "\nAddon is NSFW!!!"
+                                icon:SetImage("icon16/cross.png")
+                            end
+                            line:SetTooltip( tooltip )
+                            line:SetColumnText( 5, icon )
+                        end
+                    end
+                end
+
+                Menu.QueuePopulate()
+            end
+
+
+            function Menu.ShopPopulate()
+
+                HistoryIconLayout:Clear()
+                HistoryList:Clear()
+
+                local icon = HistoryIconLayout:Add( "SpawnIcon" )
+                icon:SetSize( 128, 128 )
+                icon:SetSpawnIcon( "icon16/add.png" )
+                icon:SetTooltip( "#EPS.Hands.UsePM" )
+                icon.DoClick = function()
+                    if IsValid(RequestFrame) then
+                        RequestFrame:MakePopup()
+                        return
+                    end
+                    RequestFrame = vgui.Create( "DFrame" )
+                    RequestFrame:SetSize( 300, 150 )
+                    RequestFrame:Center()
+                    RequestFrame:SetTitle( "Request an addon" )
+                    RequestFrame:SetVisible( true )
+                    RequestFrame:ShowCloseButton( true )
+                    RequestFrame:MakePopup()
+
+                    local TextEntry = vgui.Create( "DTextEntry", RequestFrame ) -- create the form as a child of frame
+                    TextEntry:Dock( TOP )
+                    TextEntry:SetPlaceholderText( "Enter Workshop ID" )
+                    TextEntry.OnEnter = function( self )
+                        local input = self:GetValue()
+                        if string.find(input, "?id=") then input = UrlToWorkshopID(input) end
+                        RequestAddon(input)
+                        RequestFrame:Close()
+                    end
+                end
+
+                local ShopFilter = Menu.ShopFilter:GetValue() or nil
+
+                for id, v in SortedPairsByMemberValue( History, "time", true ) do
+
+                    if IsInFilter( v.title .. id, ShopFilter ) then
+                        local icon = HistoryIconLayout:Add( "DImageButton" )
+                        icon:SetSize( 128, 128 )
+                        if v.previewid then
+                            if not file.Exists( "cache/workshop/" .. v.previewid .. ".cache","GAME" ) then
+                                steamworks.Download( v.previewid, false, function( path )
+                                    icon:SetMaterial( AddonMaterial( path ) )
+                                end)
+                            else
+                                icon:SetMaterial( AddonMaterial("cache/workshop/" .. v.previewid .. ".cache","GAME") )
+                            end
+                        end
+                        icon:SetTooltip( v.title )
+                        icon.DoDoubleClick = function()
+                            RequestAddon(id)
+                        end
+
+                        icon.DoRightClick = function()
+                            local options = DermaMenu(false, icon)
+
+                            options:AddOption( "Request Addon", function() RequestAddon( id ) end):SetIcon( "icon16/add.png" )
+                            if LocalPlayer():IsAdmin() then
+                                options:AddOption( "Force Add Addon", function() RequestAddon( id, EPS_APPROVE) end):SetIcon( "icon16/shield.png" )
+                            end
+                            options:AddSpacer()
+                            options:AddOption( "Open Workshop Page", function() steamworks.ViewFile( id ) end):SetIcon( "icon16/world.png" )
+                            options:AddOption( "Copy to Clipboard", function() SetClipboardText( id ) end):SetIcon( "icon16/page.png" )
+                            options:AddSpacer()
+                            options:AddOption( "Remove from History", function()
+                                History[id] = nil
+                                Menu.ShopPopulate()
+                                file.Write( "lf_playermodel_selector/cl_history.txt", util.TableToJSON(History, true) )
+                            end):SetIcon( "icon16/delete.png" )
+                            options:Open()
+                        end
+
+                        HistoryList:AddLine( v.title, id )
+                    end
+                end
+
+            end
+
+            Menu.ShopPopulate()
         end
 
-        local t = favorites:Add( "DLabel" )
-        t:Dock( BOTTOM )
+-------------------------------------------------------------------------------
+    --
+    -- Bodygroups
+    --
+    local bgControls = window:Add( "DPanel" )
+    bgControls:DockPadding( 8, 8, 8, 8 )
+
+    local bdControlspanel = bgControls:Add( "DPanelList" )
+    bdControlspanel:EnableVerticalScrollbar()
+    bdControlspanel:Dock( FILL )
+
+    local bgTab = sheet:AddSheet( "#EPS.Bodygroups", bgControls, "icon16/cog.png" )
+
+    -- Hands
+    local h__bdControls = sheet:Add( "DPanel" )
+    h__bdControls.IsHandsTab = true
+    h__bdControls:DockPadding( 8, 8, 8, 8 )
+
+    local h__bdControlspanel = h__bdControls:Add( "DPanelList" )
+    h__bdControlspanel:EnableVerticalScrollbar()
+    h__bdControlspanel:Dock( FILL )
+
+    local h__bgTab = sheet:AddSheet( "#EPS.Handgroups", h__bdControls, "icon16/group_link.png" )
+
+    -- Flexes
+    local flexcontrols = sheet:Add( "DPanel" )
+    flexcontrols:DockPadding( 8, 8, 8, 8 )
+
+    local flexcontrolspanel = flexcontrols:Add( "DPanelList" )
+    flexcontrolspanel:EnableVerticalScrollbar()
+    flexcontrolspanel:Dock( FILL )
+
+
+    local flextab = sheet:AddSheet( "#EPS.Flexes", flexcontrols, "icon16/emoticon_wink.png" )
+
+
+    local function SetDefaultColorFromConVar( panel, convarName )
+        local color = Vector( GetConVar( convarName ):GetDefault() ):ToColor()
+        if ( color ) then
+            panel.HSV:SetDefaultColor( color )
+        end
+    end
+    --
+    -- Colors
+    --
+    local colorPickerSize = math.min( window:GetTall() / 3, 260 )
+
+    local controlsTop = window:Add( "DPanel" )
+    controlsTop:DockPadding( 8, 8, 8, 8 )
+
+
+
+    local plycol = controlsTop:Add( "DColorMixer" )
+
+
+    plycol:Dock( TOP )
+    plycol:SetLabel( "#smwidget.color_plr" )
+    plycol:SetTall( colorPickerSize )
+    plycol:SetAlphaBar( false )
+    plycol:SetPaletteName( "plrmdlslct_ply_clr" )
+    SetDefaultColorFromConVar( plycol, "cl_playercolor" )
+
+
+
+    local wepcol = controlsTop:Add( "DColorMixer" )
+
+
+    wepcol:Dock( TOP )
+    wepcol:DockMargin( 0, 32, 0, 0 )
+    wepcol:SetLabel( "#smwidget.color_wep" )
+    wepcol:SetTall( colorPickerSize )
+    wepcol:SetVector( Vector( GetConVarString( "cl_weaponcolor" ) ) )
+    wepcol:SetAlphaBar( false )
+    wepcol:SetPaletteName( "plrmdlslct_wep_clr" )
+    SetDefaultColorFromConVar( wepcol, "cl_weaponcolor" )
+
+    sheet:AddSheet( "#smwidget.colors", controlsTop, "icon16/color_wheel.png" )
+---------------------------------------------------------------------------------
+
+    local moretab = sheet:Add( "DPropertySheet" )
+    sheet:AddSheet( "#EPS.Settings", moretab, "icon16/key.png" )
+
+
+        local panel = moretab:Add( "DPanel" )
+        moretab:AddSheet( "#EPS.Settings.Client", panel, "icon16/status_online.png" )
+        panel:DockPadding( 10, 10, 10, 10 )
+
+        local panel = panel:Add( "DScrollPanel" )
+        panel:Dock( FILL )
+
+        local c = panel:Add( "DCheckBoxLabel" )
+        c.cvar = GetConVar("cl_playermodel_selector_force")
+        c:Dock( TOP )
+        c:DockMargin( 0, 0, 0, 5 )
+        c:SetValue( c.cvar:GetBool() )
+        c:SetText( "#EPS.Settings.Client.EnforcePM" )
+        c:SetDark( true )
+        function c:OnChange( v )
+            c.cvar:SetBool( v == true )
+        end
+
+        local t = panel:Add( "DLabel" )
+        t:Dock( TOP )
+        t:DockMargin( 0, 0, 0, 20 )
         t:SetAutoStretchVertical( true )
-        t:SetText( "#EPS.Favorites.Desc" )
+        t:SetText( "#EPS.Settings.Client.EnforcePM.Desc" )
         t:SetDark( true )
         t:SetWrap( true )
 
-        local control = favorites:Add( "DPanel" )
-        control:Dock( BOTTOM )
-        control:DockMargin( 0, 10, 0, 0 )
-        control:SetSize( 0, 60 )
-        control:SetPaintBackground( false )
-
-        function Menu.FavAdd( name )
-            Favorites[name] = { }
-            Favorites[name].model = Current.model
-            Favorites[name].skin = Current.skin
-            Favorites[name].bodygroups = Current.bodygroups
-            Favorites[name].hand = Current.hand
-            Favorites[name].handgroups = Current.handgroups
-            Favorites[name].handskin = Current.handskin
-            Favorites[name].wsid = FindModelID(Current.model) or Current.modelid or ""
-            file.Write( "lf_playermodel_selector/cl_favorites.txt", util.TableToJSON( Favorites, true ) )
-            Menu.FavPopulate()
+        local c = panel:Add( "DCheckBoxLabel" )
+        c.cvar = GetConVar("cl_playermodel_selector_translate_bodygroup")
+        c:Dock( TOP )
+        c:DockMargin( 0, 0, 0, 5 )
+        c:SetValue( c.cvar:GetBool() )
+        c:SetText( "#EPS.Settings.Client.TranslateBodygroup" )
+        c:SetDark( true )
+        function c:OnChange( v )
+            c.cvar:SetBool( v == true )
         end
 
-        local FavEntry = control:Add( "DTextEntry" )
-        FavEntry:SetPos( 0, 0 )
-        FavEntry:SetSize( 395, 20 )
+        local t = panel:Add( "DLabel" )
+        t:Dock( TOP )
+        t:DockMargin( 0, 0, 0, 20 )
+        t:SetAutoStretchVertical( true )
+        t:SetText( "#EPS.Settings.Client.TranslateBodygroup.Desc" )
+        t:SetDark( true )
+        t:SetWrap( true )
 
-        local b = control:Add( "DButton" )
-        b:SetPos( 0, 30 )
-        b:SetSize( 125, 20 )
-        b:SetText( "#EPS.Favorites.AddNewFavorite" )
-        b.DoClick = function()
-            local name = FavEntry:GetValue()
-            if name == "" then return end
-            Menu.FavAdd( name )
+        local c = panel:Add( "DCheckBoxLabel" )
+        c.cvar = GetConVar("cl_playermodel_selector_bgcolor_custom")
+        c:Dock( TOP )
+        c:DockMargin( 0, 0, 0, 5 )
+        c:SetValue( c.cvar:GetBool() )
+        c:SetText( "#EPS.Settings.Client.PlayerColorBG" )
+        c:SetDark( true )
+        c:SizeToContents()
+        function c:OnChange( v )
+            c.cvar:SetBool( v == true )
         end
 
-        local b = control:Add( "DButton" )
-        b:SetPos( 135, 30 )
-        b:SetSize( 125, 20 )
-        b:SetText( "#EPS.Favorites.ReplaceSelected" )
-        b.DoClick = function()
-            local sel = FavList:GetSelected()
-            if sel[2] then return end
-            if not sel[1] then return end
-            local name = tostring( sel[1]:GetValue(1) )
-            Menu.FavAdd( name )
+        local t = panel:Add( "DLabel" )
+        t:Dock( TOP )
+        t:DockMargin( 0, 0, 0, 20 )
+        t:SetAutoStretchVertical( true )
+        t:SetText( "#EPS.Settings.Client.PlayerColorBG.Desc" )
+        t:SetDark( true )
+        t:SetWrap( true )
+
+        local c = panel:Add( "DCheckBoxLabel" )
+        c.cvar = GetConVar("cl_playermodel_selector_bgcolor_trans")
+        c:Dock( TOP )
+        c:DockMargin( 0, 0, 0, 5 )
+        c:SetValue( c.cvar:GetBool() )
+        c:SetText( "#EPS.Settings.Client.TransparentBG" )
+        c:SetDark( true )
+        c:SizeToContents()
+        function c:OnChange( v )
+            c.cvar:SetBool( v == true )
         end
 
-        local b = control:Add( "DButton" )
-        b:SetPos( 270, 30 )
-        b:SetSize( 125, 20 )
-        b:SetText( "#EPS.Favorites.DeleteAllSelected" )
-        b.DoClick = function()
-            local sel = FavList:GetSelected()
-            for k, v in pairs( sel ) do
-                local name = tostring( v:GetValue(1) )
-                Favorites[name] = nil
-            end
-            file.Write( "lf_playermodel_selector/cl_favorites.txt", util.TableToJSON( Favorites, true ) )
-            Menu.FavPopulate()
+        local t = panel:Add( "DLabel" )
+        t:Dock( TOP )
+        t:DockMargin( 0, 0, 0, 20 )
+        t:SetAutoStretchVertical( true )
+        t:SetText( "#EPS.Settings.Client.TransparentBG.Desc" )
+        t:SetDark( true )
+        t:SetWrap( true )
+
+        local c = panel:Add( "DCheckBoxLabel" )
+        c.cvar = GetConVar("cl_playermodel_selector_hide_defaults")
+        c:Dock( TOP )
+        c:DockMargin( 0, 0, 0, 5 )
+        c:SetValue( c.cvar:GetBool() )
+        c:SetText( "#EPS.Settings.Client.HideDefaultPMs" )
+        c:SetDark( true )
+        c:SizeToContents()
+        function c:OnChange( v )
+            c.cvar:SetBool( v == true )
+            Menu.ModelPopulate()
         end
 
-            ---------------------------------------------------------------------------------
-        if GetConVar("sv_playermodel_selector_workshop_enabled"):GetBool() then
-            local shoptab = Menu.Right:Add( "DPropertySheet" )
-            Menu.Right:AddSheet( "#EPS.Workshop", shoptab, "icon16/wrench.png" )
+        local t = panel:Add( "DLabel" )
+        t:Dock( TOP )
+        t:DockMargin( 0, 0, 0, 20 )
+        t:SetAutoStretchVertical( true )
+        t:SetText( "#EPS.Settings.Client.HideDefaultPMs.Desc" )
+        t:SetDark( true )
+        t:SetWrap( true )
 
-                Menu.ShopFilter = shoptab:Add( "DTextEntry" )
-                Menu.ShopFilter:SetPlaceholderText( "#EPS.Search" )
-                Menu.ShopFilter:DockMargin( 8, 0, 8, 4 )
-                Menu.ShopFilter:Dock( TOP )
-                Menu.ShopFilter:SetUpdateOnType( true )
-                Menu.ShopFilter.OnValueChange = function()
-                    Menu.ShopPopulate()
-                    if LocalPlayer():IsAdmin() then Menu.QueuePopulate() end
-                end
+        local c = panel:Add( "DCheckBoxLabel" )
+        c.cvar = GetConVar("cl_playermodel_selector_ignorehands")
+        c:Dock( TOP )
+        c:DockMargin( 0, 0, 0, 5 )
+        c:SetValue( c.cvar:GetBool() )
+        c:SetText( "#EPS.Settings.Client.IgnoreC_ArmsOnlyPMs" )
+        c:SetDark( true )
+        c:SizeToContents()
+        function c:OnChange( v )
+            c.cvar:SetBool( v == true )
+            Menu.ModelPopulate()
+        end
 
+        local t = panel:Add( "DLabel" )
+        t:Dock( TOP )
+        t:DockMargin( 0, 0, 0, 20 )
+        t:SetAutoStretchVertical( true )
+        t:SetText( "#EPS.Settings.Client.IgnoreC_ArmsOnlyPMs.Desc" )
+        t:SetDark( true )
+        t:SetWrap( true )
 
-                local HistoryScroll = shoptab:Add( "DScrollPanel" )
-                shoptab:AddSheet( "#EPS.Model.Icons", HistoryScroll, "icon16/application_view_tile.png" )
-                HistoryScroll:DockMargin( 2, 0, 2, 2 )
-                HistoryScroll:Dock( FILL )
+        local c = panel:Add( "DCheckBoxLabel" )
+        c.cvar = GetConVar("cl_playermodel_selector_unlockflexes")
+        c:Dock( TOP )
+        c:DockMargin( 0, 0, 0, 5 )
+        c:SetValue( c.cvar:GetBool() )
+        c:SetText( "#EPS.Settings.Client.ShowFlexes" )
+        c:SetDark( true )
+        c:SizeToContents()
+        function c:OnChange( v )
+            c.cvar:SetBool( v == true )
+            timer.Simple( 0, function() Menu.RebuildBodygroupTab() end )
+        end
+        if (!GetConVar( "sv_playermodel_selector_flexes" ):GetBool()) then
+            c:SetDisabled(true)
+            c:SetText("Flexes are disabled on the server.")
+        end
 
-                local HistoryIconLayout = HistoryScroll:Add( "DIconLayout" )
-                HistoryIconLayout:SetSpaceX( 2 )
-                HistoryIconLayout:SetSpaceY( 2 )
-                HistoryIconLayout:Dock( FILL )
+        local t = panel:Add( "DLabel" )
+        t:Dock( TOP )
+        t:DockMargin( 0, 0, 0, 20 )
+        t:SetAutoStretchVertical( true )
+        t:SetText( "#EPS.Settings.Client.ShowFlexes.Desc" )
+        t:SetDark( true )
+        t:SetWrap( true )
 
-                local HistoryList = shoptab:Add( "DListView" )
-                shoptab:AddSheet( "#EPS.Hands.Table", HistoryList, "icon16/application_view_list.png" )
-                HistoryList:DockMargin( 5, 0, 5, 5 )
-                HistoryList:Dock( FILL )
-                HistoryList:SetMultiSelect( false )
-                HistoryList:AddColumn( "#EPS.Hands.Table.Model" )
-                HistoryList:AddColumn( "#EPS.Workshop.Id" ):SetFixedWidth( 75 )
-                HistoryList.OnRowRightClick =  function( lst, index, pnl )
-                    local options = DermaMenu(false, icon)
-                    local id = pnl:GetColumnText( 2 )
-                    options:AddOption( "Request Addon", function() RequestAddon(id) end):SetIcon( "icon16/add.png" )
-                    if LocalPlayer():IsAdmin() then options:AddOption( "Force Add Addon", function()
-                        RequestAddon( id, EPS_APPROVE)
-                    end):SetIcon( "icon16/shield.png" ) end
-                    options:AddSpacer()
-                    options:AddOption( "Open Workshop Page", function() steamworks.ViewFile( id ) end):SetIcon( "icon16/world.png" )
-                    options:AddOption( "Copy to Clipboard", function() SetClipboardText( id ) end):SetIcon( "icon16/page.png" )
-                    options:AddSpacer()
-                    options:AddOption( "Remove from History", function()
-                        History[id] = nil
-                        Menu.ShopPopulate()
-                        file.Write( "lf_playermodel_selector/cl_history.txt", util.TableToJSON(History, true) )
-                    end):SetIcon( "icon16/delete.png" )
-                    options:Open()
-                end
-                HistoryList.DoDoubleClick = function( panel, rowIndex, row )
-                    RequestAddon( row:GetValue( 2 ) )
-                end
-
-                if LocalPlayer():IsAdmin() then
-
-                    local QueueList = shoptab:Add( "DListView" )
-                    shoptab:AddSheet( "Requests", QueueList, "icon16/script_edit.png" )
-                    QueueList:DockMargin( 5, 0, 5, 5 )
-                    QueueList:Dock( FILL )
-                    QueueList:SetMultiSelect( false )
-                    QueueList:AddColumn( "#EPS.Hands.Table.Model" )
-                    QueueList:AddColumn( "Player" ):SetFixedWidth( 100 )
-                    QueueList:AddColumn( "#EPS.Workshop.Id" ):SetFixedWidth( 75 )
-                    QueueList:AddColumn( "plyID" ):SetFixedWidth( 0 )
-                    QueueList:AddColumn( "" ):SetFixedWidth( 16 )
-
-                    QueueList.OnRowRightClick =  function( lst, index, pnl )
-                    local options = DermaMenu(false, icon)
-                    local id = pnl:GetColumnText( 3 )
-                    options:AddOption( "Approve Addon", function() RequestAddon(id, EPS_APPROVE) end):SetIcon( "icon16/add.png" )
-                    options:AddSpacer()
-                    options:AddOption( "Open Workshop Page", function() steamworks.ViewFile( id ) end):SetIcon( "icon16/world.png" )
-                    options:AddOption( "Copy to Clipboard", function() SetClipboardText( id ) end):SetIcon( "icon16/page.png" )
-                    options:AddOption( "Copy Player ID", function() SetClipboardText( pnl:GetColumnText( 4 ) ) end):SetIcon( "icon16/user.png" )
-                    options:AddSpacer()
-                    options:AddOption( "Deny Addon", function() RequestAddon(id, EPS_DENY) end):SetIcon( "icon16/delete.png" )
-                    options:Open()
-                end
-
-                    function Menu.QueuePopulate()
-                        QueueList:Clear()
-
-                        local ShopFilter = Menu.ShopFilter:GetValue() or nil
-                        for k, v in pairs(Queue) do
-                            if IsInFilter( v.title .. k .. v.ply:GetName(), ShopFilter ) then
-                                local line = QueueList:AddLine( v.title, v.ply:GetName(), k, v.ply:SteamID64() )
-                                local tooltip = v.title .. "\nAddon Size: " .. math.Round( v.size / 1000000, 2) .. " Mb\nRequested by " .. v.ply:GetName() .. " (" .. v.ply:SteamID64() .. ")"
-                                local icon = vgui.Create("DImage")
-                                icon:SetImage("icon16/tick.png")
-                                icon:SetKeepAspect(true)
-                                icon:SetSelectable(true)
-                                icon:SetParent(line)
-                                if v["unpm"] then
-                                    tooltip = tooltip .. "\nAddon may not have valid playermodel."
-                                    icon:SetImage("icon16/error.png")
-                                end
-                                if v["oversize"] then
-                                    tooltip = tooltip .. "\nAddon is oversized."
-                                    icon:SetImage("icon16/error.png")
-                                end
-                                if not table.IsEmpty(v["content_descriptors"]) then
-                                    tooltip = tooltip .. "\nAddon is NSFW!!!"
-                                    icon:SetImage("icon16/cross.png")
-                                end
-                                line:SetTooltip( tooltip )
-                                line:SetColumnText( 5, icon )
-                            end
-                        end
-                    end
-
-                    Menu.QueuePopulate()
-                end
-
-
-                function Menu.ShopPopulate()
-
-                    HistoryIconLayout:Clear()
-                    HistoryList:Clear()
-
-                    local icon = HistoryIconLayout:Add( "SpawnIcon" )
-                    icon:SetSize( 128, 128 )
-                    icon:SetSpawnIcon( "icon16/add.png" )
-                    icon:SetTooltip( "#EPS.Hands.UsePM" )
-                    icon.DoClick = function()
-                        if IsValid(RequestFrame) then
-                            RequestFrame:MakePopup()
-                            return
-                        end
-                        RequestFrame = vgui.Create( "DFrame" )
-                        RequestFrame:SetSize( 300, 150 )
-                        RequestFrame:Center()
-                        RequestFrame:SetTitle( "Request an addon" )
-                        RequestFrame:SetVisible( true )
-                        RequestFrame:ShowCloseButton( true )
-                        RequestFrame:MakePopup()
-
-                        local TextEntry = vgui.Create( "DTextEntry", RequestFrame ) -- create the form as a child of frame
-                        TextEntry:Dock( TOP )
-                        TextEntry:SetPlaceholderText( "Enter Workshop ID" )
-                        TextEntry.OnEnter = function( self )
-                            local input = self:GetValue()
-                            if string.find(input, "?id=") then input = UrlToWorkshopID(input) end
-                            RequestAddon(input)
-                            RequestFrame:Close()
-                        end
-                    end
-
-                    local ShopFilter = Menu.ShopFilter:GetValue() or nil
-
-                    for id, v in SortedPairsByMemberValue( History, "time", true ) do
-
-                        if IsInFilter( v.title .. id, ShopFilter ) then
-                            local icon = HistoryIconLayout:Add( "DImageButton" )
-                            icon:SetSize( 128, 128 )
-                            if v.previewid then
-                                if not file.Exists( "cache/workshop/" .. v.previewid .. ".cache","GAME" ) then
-                                    steamworks.Download( v.previewid, false, function( path )
-                                        icon:SetMaterial( AddonMaterial( path ) )
-                                    end)
-                                else
-                                    icon:SetMaterial( AddonMaterial("cache/workshop/" .. v.previewid .. ".cache","GAME") )
-                                end
-                            end
-                            icon:SetTooltip( v.title )
-                            icon.DoDoubleClick = function()
-                                RequestAddon(id)
-                            end
-
-                            icon.DoRightClick = function()
-                                local options = DermaMenu(false, icon)
-
-                                options:AddOption( "Request Addon", function() RequestAddon( id ) end):SetIcon( "icon16/add.png" )
-                                if LocalPlayer():IsAdmin() then
-                                    options:AddOption( "Force Add Addon", function() RequestAddon( id, EPS_APPROVE) end):SetIcon( "icon16/shield.png" )
-                                end
-                                options:AddSpacer()
-                                options:AddOption( "Open Workshop Page", function() steamworks.ViewFile( id ) end):SetIcon( "icon16/world.png" )
-                                options:AddOption( "Copy to Clipboard", function() SetClipboardText( id ) end):SetIcon( "icon16/page.png" )
-                                options:AddSpacer()
-                                options:AddOption( "Remove from History", function()
-                                    History[id] = nil
-                                    Menu.ShopPopulate()
-                                    file.Write( "lf_playermodel_selector/cl_history.txt", util.TableToJSON(History, true) )
-                                end):SetIcon( "icon16/delete.png" )
-                                options:Open()
-                            end
-
-                            HistoryList:AddLine( v.title, id )
-                        end
-                    end
-
-                end
-
-                Menu.ShopPopulate()
-            end
-
--------------------------------------------------------------------------------
-
-
-        local bdcontrols = Menu.Right:Add( "DPanel" )
-        local bgtab = Menu.Right:AddSheet( "#EPS.Bodygroups", bdcontrols, "icon16/group.png" )
-        bdcontrols:DockPadding( 8, 8, 8, 8 )
-
-        local bdcontrolspanel = bdcontrols:Add( "DPanelList" )
-        bdcontrolspanel:EnableVerticalScrollbar()
-        bdcontrolspanel:Dock( FILL )
-
-        -- Hands
-        local h__bdcontrols = Menu.Right:Add( "DPanel" )
-        local h__bgtab = Menu.Right:AddSheet( "#EPS.Handgroups", h__bdcontrols, "icon16/group_link.png" )
-        h__bdcontrols:DockPadding( 8, 8, 8, 8 )
-
-        h__bgtab.Tab.IsHandsTab = true
-
-        local h__bdcontrolspanel = h__bdcontrols:Add( "DPanelList" )
-        h__bdcontrolspanel:EnableVerticalScrollbar()
-        h__bdcontrolspanel:Dock( FILL )
-
-
-        local flexcontrols = Menu.Right:Add( "DPanel" )
-        local flextab = Menu.Right:AddSheet( "#EPS.Flexes", flexcontrols, "icon16/emoticon_wink.png" )
-        flexcontrols:DockPadding( 8, 8, 8, 8 )
-
-        local flexcontrolspanel = flexcontrols:Add( "DPanelList" )
-        flexcontrolspanel:EnableVerticalScrollbar()
-        flexcontrolspanel:Dock( FILL )
-
-
-        local controls = Menu.Right:Add( "DPanel" )
-        Menu.Right:AddSheet( "#EPS.Colors", controls, "icon16/color_wheel.png" )
-        controls:DockPadding( 8, 8, 8, 8 )
-
-        local lbl = controls:Add( "DLabel" )
-        lbl:SetText( "#EPS.Colors.PlayerColor" )
-        lbl:SetTextColor( Color( 0, 0, 0, 255 ) )
-        lbl:Dock( TOP )
-
-        local plycol = controls:Add( "DColorMixer" )
-        plycol:SetAlphaBar( false )
-        plycol:SetPalette( false )
-        plycol:Dock( TOP )
-        plycol:SetSize( 200, ( fh - 160) / 2 )
-
-        local lbl = controls:Add( "DLabel" )
-        lbl:SetText( "#EPS.Colors.PhysgunColor" )
-        lbl:SetTextColor( Color( 0, 0, 0, 255 ) )
-        lbl:DockMargin( 0, 8, 0, 0 )
-        lbl:Dock( TOP )
-
-        local wepcol = controls:Add( "DColorMixer" )
-        wepcol:SetAlphaBar( false )
-        wepcol:SetPalette( false )
-        wepcol:Dock( TOP )
-        wepcol:SetSize( 200, ( fh - 160) / 2 )
-        wepcol:SetVector( Vector( weaponcolor:GetString() ) )
-
-        local b = controls:Add( "DButton" )
-        b:DockMargin( 0, 8, 0, 0 )
+        local b = panel:Add( "DButton" )
         b:Dock( TOP )
-        b:SetSize( 150, 20 )
-        b:SetText( "#EPS.Colors.ResetToDefault" )
+        b:DockMargin( 0, 0, 10, 5 )
+        b:SetText( "#EPS.Settings.Client.RebuildIcon" )
         b.DoClick = function()
-            plycol:SetVector( Vector( 0.24, 0.34, 0.41 ) )
-            wepcol:SetVector( Vector( 0.30, 1.80, 2.10 ) )
-            playercolor:SetString( "0.24 0.34 0.41" )
-            weaponcolor:SetString( "0.30 1.80 2.10" )
+            for _, icon in pairs( modelicons ) do
+                icon:RebuildSpawnIcon()
+            end
+
+            -- local thecount = 0
+            for _, icon in pairs( modelicons_forhands ) do
+                if IsValid(icon) then
+                    icon:MakeHandIcon()
+                end
+            end
         end
 
----------------------------------------------------------------------------------
+        local t = panel:Add( "DLabel" )
+        t:Dock( TOP )
+        t:DockMargin( 0, 0, 0, 20 )
+        t:SetAutoStretchVertical( true )
+        t:SetText( "#EPS.Settings.Client.RebuildIcon.Desc" )
+        t:SetDark( true )
+        t:SetWrap( true )
 
-        local moretab = Menu.Right:Add( "DPropertySheet" )
-        Menu.Right:AddSheet( "#EPS.Settings", moretab, "icon16/key.png" )
 
+        if LocalPlayer():IsSuperAdmin() then
 
             local panel = moretab:Add( "DPanel" )
-            moretab:AddSheet( "#EPS.Settings.Client", panel, "icon16/status_online.png" )
+            moretab:AddSheet( "#EPS.Settings.Server", panel, "icon16/world.png" )
             panel:DockPadding( 10, 10, 10, 10 )
 
             local panel = panel:Add( "DScrollPanel" )
             panel:Dock( FILL )
 
+            local function ChangeCVar( p, v )
+                net.Start("lf_playermodel_cvar_change")
+                net.WriteString( p.cvar )
+                net.WriteString( v == true and "1" or "0" )
+                net.SendToServer()
+            end
+
             local c = panel:Add( "DCheckBoxLabel" )
-            c.cvar = GetConVar("cl_playermodel_selector_force")
+            c.cvar = "sv_playermodel_selector_force"
             c:Dock( TOP )
             c:DockMargin( 0, 0, 0, 5 )
-            c:SetValue( c.cvar:GetBool() )
-            c:SetText( "#EPS.Settings.Client.EnforcePM" )
+            c:SetValue( GetConVar(c.cvar):GetBool() )
+            c:SetText( "#EPS.Settings.Server.EnablePMEnforcement" )
             c:SetDark( true )
-            function c:OnChange( v )
-                c.cvar:SetBool( v == true )
-            end
+            c.OnChange = ChangeCVar
 
             local t = panel:Add( "DLabel" )
             t:Dock( TOP )
             t:DockMargin( 0, 0, 0, 20 )
             t:SetAutoStretchVertical( true )
-            t:SetText( "#EPS.Settings.Client.EnforcePM.Desc" )
+            t:SetText( "#EPS.Settings.Server.EnablePMEnforcement.Desc" )
             t:SetDark( true )
             t:SetWrap( true )
 
             local c = panel:Add( "DCheckBoxLabel" )
-            c.cvar = GetConVar("cl_playermodel_selector_translate_bodygroup")
+            c.cvar = "sv_playermodel_selector_instantly"
             c:Dock( TOP )
             c:DockMargin( 0, 0, 0, 5 )
-            c:SetValue( c.cvar:GetBool() )
-            c:SetText( "#EPS.Settings.Client.TranslateBodygroup" )
+            c:SetValue( GetConVar(c.cvar):GetBool() )
+            c:SetText( "#EPS.Settings.Server.AllowInstantChanges" )
             c:SetDark( true )
-            function c:OnChange( v )
-                c.cvar:SetBool( v == true )
-            end
+            c.OnChange = ChangeCVar
 
             local t = panel:Add( "DLabel" )
             t:Dock( TOP )
             t:DockMargin( 0, 0, 0, 20 )
             t:SetAutoStretchVertical( true )
-            t:SetText( "#EPS.Settings.Client.TranslateBodygroup.Desc" )
+            t:SetText( "#EPS.Settings.Server.AllowInstantChanges.Desc" )
             t:SetDark( true )
             t:SetWrap( true )
 
             local c = panel:Add( "DCheckBoxLabel" )
-            c.cvar = GetConVar("cl_playermodel_selector_bgcolor_custom")
+            c.cvar = "sv_playermodel_selector_flexes"
             c:Dock( TOP )
             c:DockMargin( 0, 0, 0, 5 )
-            c:SetValue( c.cvar:GetBool() )
-            c:SetText( "#EPS.Settings.Client.PlayerColorBG" )
+            c:SetValue( GetConVar(c.cvar):GetBool() )
+            c:SetText( "#EPS.Settings.Server.AllowFlexes" )
             c:SetDark( true )
-            c:SizeToContents()
-            function c:OnChange( v )
-                c.cvar:SetBool( v == true )
-            end
+            c.OnChange = ChangeCVar
 
             local t = panel:Add( "DLabel" )
             t:Dock( TOP )
             t:DockMargin( 0, 0, 0, 20 )
             t:SetAutoStretchVertical( true )
-            t:SetText( "#EPS.Settings.Client.PlayerColorBG.Desc" )
+            t:SetText( "#EPS.Settings.Server.AllowFlexes.Desc" )
             t:SetDark( true )
             t:SetWrap( true )
 
             local c = panel:Add( "DCheckBoxLabel" )
-            c.cvar = GetConVar("cl_playermodel_selector_bgcolor_trans")
+            c.cvar = "sv_playermodel_selector_gamemodes"
             c:Dock( TOP )
             c:DockMargin( 0, 0, 0, 5 )
-            c:SetValue( c.cvar:GetBool() )
-            c:SetText( "#EPS.Settings.Client.TransparentBG" )
+            c:SetValue( GetConVar(c.cvar):GetBool() )
+            c:SetText( "#EPS.Settings.Server.EnableInAllGM" )
             c:SetDark( true )
-            c:SizeToContents()
-            function c:OnChange( v )
-                c.cvar:SetBool( v == true )
+            c.OnChange = ChangeCVar
+
+            local t = panel:Add( "DLabel" )
+            t:Dock( TOP )
+            t:DockMargin( 0, 0, 0, 20 )
+            t:SetAutoStretchVertical( true )
+            t:SetText( "#EPS.Settings.Server.EnableInAllGM.Desc" )
+            t:SetDark( true )
+            t:SetWrap( true )
+
+            local s = panel:Add( "DNumSlider" )
+            s.cvar = "sv_playermodel_selector_limit"
+            s:Dock( TOP )
+            s:DockMargin( 0, 0, 0, 5 )
+            s:SetText( "#EPS.Settings.Server.RequestLimit" )
+            s:SetDark( true )
+            s:SetDecimals( 0 )
+            s:SetMax( 900 )
+            s:SetValue( GetConVar( s.cvar ):GetInt() )
+            s.OnValueChanged = function( val )
+                net.Start("lf_playermodel_cvar_change")
+                net.WriteString( s.cvar )
+                net.WriteString( tostring( math.floor( val:GetValue(1) ) ) )
+                net.SendToServer()
             end
 
             local t = panel:Add( "DLabel" )
             t:Dock( TOP )
             t:DockMargin( 0, 0, 0, 20 )
             t:SetAutoStretchVertical( true )
-            t:SetText( "#EPS.Settings.Client.TransparentBG.Desc" )
+            t:SetText( "#EPS.Settings.Server.RequestLimit.Desc" )
             t:SetDark( true )
             t:SetWrap( true )
 
             local c = panel:Add( "DCheckBoxLabel" )
-            c.cvar = GetConVar("cl_playermodel_selector_hide_defaults")
+            c.cvar = "sv_playermodel_selector_workshop_enabled"
             c:Dock( TOP )
             c:DockMargin( 0, 0, 0, 5 )
-            c:SetValue( c.cvar:GetBool() )
-            c:SetText( "#EPS.Settings.Client.HideDefaultPMs" )
+            c:SetValue( GetConVar(c.cvar):GetBool() )
+            c:SetText( "sv_playermodel_selector_workshop_enabled" )
             c:SetDark( true )
-            c:SizeToContents()
-            function c:OnChange( v )
-                c.cvar:SetBool( v == true )
-                Menu.ModelPopulate()
-            end
+            c.OnChange = ChangeCVar
 
             local t = panel:Add( "DLabel" )
             t:Dock( TOP )
             t:DockMargin( 0, 0, 0, 20 )
             t:SetAutoStretchVertical( true )
-            t:SetText( "#EPS.Settings.Client.HideDefaultPMs.Desc" )
+            t:SetText( "enables all workshop functionalities" )
             t:SetDark( true )
             t:SetWrap( true )
 
             local c = panel:Add( "DCheckBoxLabel" )
-            c.cvar = GetConVar("cl_playermodel_selector_ignorehands")
+            c.cvar = "sv_playermodel_selector_workshop_queue"
             c:Dock( TOP )
             c:DockMargin( 0, 0, 0, 5 )
-            c:SetValue( c.cvar:GetBool() )
-            c:SetText( "#EPS.Settings.Client.IgnoreC_ArmsOnlyPMs" )
+            c:SetValue( GetConVar(c.cvar):GetBool() )
+            c:SetText( "sv_playermodel_selector_workshop_queue" )
             c:SetDark( true )
-            c:SizeToContents()
-            function c:OnChange( v )
-                c.cvar:SetBool( v == true )
-                Menu.ModelPopulate()
-            end
+            c.OnChange = ChangeCVar
 
             local t = panel:Add( "DLabel" )
             t:Dock( TOP )
             t:DockMargin( 0, 0, 0, 20 )
             t:SetAutoStretchVertical( true )
-            t:SetText( "#EPS.Settings.Client.IgnoreC_ArmsOnlyPMs.Desc" )
+            t:SetText( "enables the request queue system for admin review, disable to imedeatly load all requested models" )
             t:SetDark( true )
             t:SetWrap( true )
 
             local c = panel:Add( "DCheckBoxLabel" )
-            c.cvar = GetConVar("cl_playermodel_selector_unlockflexes")
+            c.cvar = "sv_playermodel_selector_workshop_descriptors"
             c:Dock( TOP )
             c:DockMargin( 0, 0, 0, 5 )
-            c:SetValue( c.cvar:GetBool() )
-            c:SetText( "#EPS.Settings.Client.ShowFlexes" )
+            c:SetValue( GetConVar(c.cvar):GetBool() )
+            c:SetText( "sv_playermodel_selector_workshop_descriptors" )
             c:SetDark( true )
-            c:SizeToContents()
-            function c:OnChange( v )
-                c.cvar:SetBool( v == true )
-                timer.Simple( 0, function() Menu.RebuildBodygroupTab() end )
-            end
-            if (!GetConVar( "sv_playermodel_selector_flexes" ):GetBool()) then
-                c:SetDisabled(true)
-                c:SetText("Flexes are disabled on the server.")
-            end
+            c.OnChange = ChangeCVar
 
             local t = panel:Add( "DLabel" )
             t:Dock( TOP )
             t:DockMargin( 0, 0, 0, 20 )
             t:SetAutoStretchVertical( true )
-            t:SetText( "#EPS.Settings.Client.ShowFlexes.Desc" )
+            t:SetText( "Allows models with content descriptors to be requested/loaded, which may include NSFW content" )
+            t:SetDark( true )
+            t:SetWrap( true )
+
+            local c = panel:Add( "DCheckBoxLabel" )
+            c.cvar = "sv_playermodel_selector_workshop_load"
+            c:Dock( TOP )
+            c:DockMargin( 0, 0, 0, 5 )
+            c:SetValue( GetConVar(c.cvar):GetBool() )
+            c:SetText( "sv_playermodel_selector_workshop_load" )
+            c:SetDark( true )
+            c.OnChange = ChangeCVar
+
+            local t = panel:Add( "DLabel" )
+            t:Dock( TOP )
+            t:DockMargin( 0, 0, 0, 20 )
+            t:SetAutoStretchVertical( true )
+            t:SetText( "Enables loading functionality" )
+            t:SetDark( true )
+            t:SetWrap( true )
+
+
+
+
+            local panel = moretab:Add( "DPanel" )
+            moretab:AddSheet( "#EPS.Settings.GM_Blacklist", panel, "icon16/delete.png" )
+            panel:DockPadding( 10, 10, 10, 10 )
+
+            local Blacklist = panel:Add( "DListView" )
+            Blacklist:Dock( LEFT )
+            Blacklist:DockMargin( 0, 0, 20, 0 )
+            Blacklist:SetWidth( 150 )
+            Blacklist:SetMultiSelect( true )
+            Blacklist:AddColumn( "#EPS.Settings.GM_Blacklist.ExistedGM" )
+
+            net.Receive("lf_playermodel_blacklist", function()
+                local tbl = net.ReadTable()
+                Blacklist:Clear()
+                for k, v in pairs( tbl ) do
+                    Blacklist:AddLine( k )
+                end
+                Blacklist:SortByColumn( 1 )
+            end )
+
+            function Menu.BlacklistPopulate()
+                net.Start( "lf_playermodel_blacklist" )
+                net.WriteInt( 0, 3 )
+                net.SendToServer()
+            end
+            Menu.BlacklistPopulate()
+
+            local t = panel:Add( "DLabel" )
+            t:Dock( TOP )
+            t:DockMargin( 0, 0, 0, 20 )
+            t:SetAutoStretchVertical( true )
+            t:SetText( "#EPS.Settings.GM_Blacklist.Desc" )
             t:SetDark( true )
             t:SetWrap( true )
 
             local b = panel:Add( "DButton" )
             b:Dock( TOP )
-            b:DockMargin( 0, 0, 10, 5 )
-            b:SetText( "#EPS.Settings.Client.RebuildIcon" )
+            b:DockMargin( 0, 0, 0, 20 )
+            b:SetHeight( 25 )
+            b:SetText( "#EPS.Settings.GM_Blacklist.AddCurrent" )
             b.DoClick = function()
-                for _, icon in pairs( modelicons ) do
-                    icon:RebuildSpawnIcon()
-                end
-
-                -- local thecount = 0
-                for _, icon in pairs( modelicons_forhands ) do
-                    if IsValid(icon) then
-                        icon:MakeHandIcon()
-                    end
-                end
+                if GAMEMODE_NAME == "sandbox" then return end
+                net.Start( "lf_playermodel_blacklist" )
+                net.WriteInt( 1, 3 )
+                net.WriteString( GAMEMODE_NAME )
+                net.SendToServer()
             end
 
-            local t = panel:Add( "DLabel" )
-            t:Dock( TOP )
-            t:DockMargin( 0, 0, 0, 20 )
-            t:SetAutoStretchVertical( true )
-            t:SetText( "#EPS.Settings.Client.RebuildIcon.Desc" )
-            t:SetDark( true )
-            t:SetWrap( true )
+            local TextEntry = panel:Add( "DTextEntry" )
+            TextEntry:Dock( TOP )
+            TextEntry:DockMargin( 0, 0, 0, 10 )
+            TextEntry:SetHeight( 20 )
+
+            local b = panel:Add( "DButton" )
+            b:Dock( TOP )
+            b:DockMargin( 0, 0, 0, 20 )
+            b:SetHeight( 20 )
+            b:SetText( "#EPS.Settings.GM_Blacklist.ManuallyAddGM" )
+            b.DoClick = function()
+                local name = TextEntry:GetValue()
+                if name == "" or name == "sandbox" then return end
+                net.Start( "lf_playermodel_blacklist" )
+                net.WriteInt( 1, 3 )
+                net.WriteString( name )
+                net.SendToServer()
+            end
+
+            local b = panel:Add( "DButton" )
+            b:Dock( TOP )
+            b:DockMargin( 0, 0, 0, 0 )
+            b:SetHeight( 25 )
+            b:SetText( "#EPS.Settings.GM_Blacklist.RemoveSelected" )
+            b.DoClick = function()
+                local tbl = { }
+                local sel = Blacklist:GetSelected()
+                for k, v in pairs( sel ) do
+                    local name = tostring( v:GetValue(1) )
+                    table.insert( tbl, name )
+                end
+                net.Start( "lf_playermodel_blacklist" )
+                net.WriteInt( 2, 3 )
+                net.WriteTable( tbl )
+                net.SendToServer()
+            end
 
 
-            if LocalPlayer():IsSuperAdmin() then
+            if TFAVOX_Models then
 
                 local panel = moretab:Add( "DPanel" )
-                moretab:AddSheet( "#EPS.Settings.Server", panel, "icon16/world.png" )
+                moretab:AddSheet( "#EPS.Settings.VOX", panel, "icon16/sound.png" )
                 panel:DockPadding( 10, 10, 10, 10 )
 
-                local panel = panel:Add( "DScrollPanel" )
-                panel:Dock( FILL )
+                local VOXlist = panel:Add( "DListView" )
+                VOXlist:Dock( TOP )
+                VOXlist:DockMargin( 0, 0, 0, 10 )
+                VOXlist:SetHeight( ( fh - 126 - 44 ) / 2 ) -- 260
+                VOXlist:SetMultiSelect( true )
+                VOXlist:AddColumn( "#EPS.Settings.VOX.PlayerModel" )
+                VOXlist:AddColumn( "#EPS.Settings.VOX.Assigned" )
 
-                local function ChangeCVar( p, v )
-                    net.Start("lf_playermodel_cvar_change")
-                    net.WriteString( p.cvar )
-                    net.WriteString( v == true and "1" or "0" )
-                    net.SendToServer()
-                end
-
-                local c = panel:Add( "DCheckBoxLabel" )
-                c.cvar = "sv_playermodel_selector_force"
-                c:Dock( TOP )
-                c:DockMargin( 0, 0, 0, 5 )
-                c:SetValue( GetConVar(c.cvar):GetBool() )
-                c:SetText( "#EPS.Settings.Server.EnablePMEnforcement" )
-                c:SetDark( true )
-                c.OnChange = ChangeCVar
-
-                local t = panel:Add( "DLabel" )
-                t:Dock( TOP )
-                t:DockMargin( 0, 0, 0, 20 )
-                t:SetAutoStretchVertical( true )
-                t:SetText( "#EPS.Settings.Server.EnablePMEnforcement.Desc" )
-                t:SetDark( true )
-                t:SetWrap( true )
-
-                local c = panel:Add( "DCheckBoxLabel" )
-                c.cvar = "sv_playermodel_selector_instantly"
-                c:Dock( TOP )
-                c:DockMargin( 0, 0, 0, 5 )
-                c:SetValue( GetConVar(c.cvar):GetBool() )
-                c:SetText( "#EPS.Settings.Server.AllowInstantChanges" )
-                c:SetDark( true )
-                c.OnChange = ChangeCVar
-
-                local t = panel:Add( "DLabel" )
-                t:Dock( TOP )
-                t:DockMargin( 0, 0, 0, 20 )
-                t:SetAutoStretchVertical( true )
-                t:SetText( "#EPS.Settings.Server.AllowInstantChanges.Desc" )
-                t:SetDark( true )
-                t:SetWrap( true )
-
-                local c = panel:Add( "DCheckBoxLabel" )
-                c.cvar = "sv_playermodel_selector_flexes"
-                c:Dock( TOP )
-                c:DockMargin( 0, 0, 0, 5 )
-                c:SetValue( GetConVar(c.cvar):GetBool() )
-                c:SetText( "#EPS.Settings.Server.AllowFlexes" )
-                c:SetDark( true )
-                c.OnChange = ChangeCVar
-
-                local t = panel:Add( "DLabel" )
-                t:Dock( TOP )
-                t:DockMargin( 0, 0, 0, 20 )
-                t:SetAutoStretchVertical( true )
-                t:SetText( "#EPS.Settings.Server.AllowFlexes.Desc" )
-                t:SetDark( true )
-                t:SetWrap( true )
-
-                local c = panel:Add( "DCheckBoxLabel" )
-                c.cvar = "sv_playermodel_selector_gamemodes"
-                c:Dock( TOP )
-                c:DockMargin( 0, 0, 0, 5 )
-                c:SetValue( GetConVar(c.cvar):GetBool() )
-                c:SetText( "#EPS.Settings.Server.EnableInAllGM" )
-                c:SetDark( true )
-                c.OnChange = ChangeCVar
-
-                local t = panel:Add( "DLabel" )
-                t:Dock( TOP )
-                t:DockMargin( 0, 0, 0, 20 )
-                t:SetAutoStretchVertical( true )
-                t:SetText( "#EPS.Settings.Server.EnableInAllGM.Desc" )
-                t:SetDark( true )
-                t:SetWrap( true )
-
-                local s = panel:Add( "DNumSlider" )
-                s.cvar = "sv_playermodel_selector_limit"
-                s:Dock( TOP )
-                s:DockMargin( 0, 0, 0, 5 )
-                s:SetText( "#EPS.Settings.Server.RequestLimit" )
-                s:SetDark( true )
-                s:SetDecimals( 0 )
-                s:SetMax( 900 )
-                s:SetValue( GetConVar( s.cvar ):GetInt() )
-                s.OnValueChanged = function( val )
-                    net.Start("lf_playermodel_cvar_change")
-                    net.WriteString( s.cvar )
-                    net.WriteString( tostring( math.floor( val:GetValue(1) ) ) )
-                    net.SendToServer()
-                end
-
-                local t = panel:Add( "DLabel" )
-                t:Dock( TOP )
-                t:DockMargin( 0, 0, 0, 20 )
-                t:SetAutoStretchVertical( true )
-                t:SetText( "#EPS.Settings.Server.RequestLimit.Desc" )
-                t:SetDark( true )
-                t:SetWrap( true )
-
-                local c = panel:Add( "DCheckBoxLabel" )
-                c.cvar = "sv_playermodel_selector_workshop_enabled"
-                c:Dock( TOP )
-                c:DockMargin( 0, 0, 0, 5 )
-                c:SetValue( GetConVar(c.cvar):GetBool() )
-                c:SetText( "sv_playermodel_selector_workshop_enabled" )
-                c:SetDark( true )
-                c.OnChange = ChangeCVar
-
-                local t = panel:Add( "DLabel" )
-                t:Dock( TOP )
-                t:DockMargin( 0, 0, 0, 20 )
-                t:SetAutoStretchVertical( true )
-                t:SetText( "enables all workshop functionalities" )
-                t:SetDark( true )
-                t:SetWrap( true )
-
-                local c = panel:Add( "DCheckBoxLabel" )
-                c.cvar = "sv_playermodel_selector_workshop_queue"
-                c:Dock( TOP )
-                c:DockMargin( 0, 0, 0, 5 )
-                c:SetValue( GetConVar(c.cvar):GetBool() )
-                c:SetText( "sv_playermodel_selector_workshop_queue" )
-                c:SetDark( true )
-                c.OnChange = ChangeCVar
-
-                local t = panel:Add( "DLabel" )
-                t:Dock( TOP )
-                t:DockMargin( 0, 0, 0, 20 )
-                t:SetAutoStretchVertical( true )
-                t:SetText( "enables the request queue system for admin review, disable to imedeatly load all requested models" )
-                t:SetDark( true )
-                t:SetWrap( true )
-
-                local c = panel:Add( "DCheckBoxLabel" )
-                c.cvar = "sv_playermodel_selector_workshop_descriptors"
-                c:Dock( TOP )
-                c:DockMargin( 0, 0, 0, 5 )
-                c:SetValue( GetConVar(c.cvar):GetBool() )
-                c:SetText( "sv_playermodel_selector_workshop_descriptors" )
-                c:SetDark( true )
-                c.OnChange = ChangeCVar
-
-                local t = panel:Add( "DLabel" )
-                t:Dock( TOP )
-                t:DockMargin( 0, 0, 0, 20 )
-                t:SetAutoStretchVertical( true )
-                t:SetText( "Allows models with content descriptors to be requested/loaded, which may include NSFW content" )
-                t:SetDark( true )
-                t:SetWrap( true )
-
-                local c = panel:Add( "DCheckBoxLabel" )
-                c.cvar = "sv_playermodel_selector_workshop_load"
-                c:Dock( TOP )
-                c:DockMargin( 0, 0, 0, 5 )
-                c:SetValue( GetConVar(c.cvar):GetBool() )
-                c:SetText( "sv_playermodel_selector_workshop_load" )
-                c:SetDark( true )
-                c.OnChange = ChangeCVar
-
-                local t = panel:Add( "DLabel" )
-                t:Dock( TOP )
-                t:DockMargin( 0, 0, 0, 20 )
-                t:SetAutoStretchVertical( true )
-                t:SetText( "Enables loading functionality" )
-                t:SetDark( true )
-                t:SetWrap( true )
-
-
-
-
-                local panel = moretab:Add( "DPanel" )
-                moretab:AddSheet( "#EPS.Settings.GM_Blacklist", panel, "icon16/delete.png" )
-                panel:DockPadding( 10, 10, 10, 10 )
-
-                local Blacklist = panel:Add( "DListView" )
-                Blacklist:Dock( LEFT )
-                Blacklist:DockMargin( 0, 0, 20, 0 )
-                Blacklist:SetWidth( 150 )
-                Blacklist:SetMultiSelect( true )
-                Blacklist:AddColumn( "#EPS.Settings.GM_Blacklist.ExistedGM" )
-
-                net.Receive("lf_playermodel_blacklist", function()
+                net.Receive("lf_playermodel_voxlist", function()
                     local tbl = net.ReadTable()
-                    Blacklist:Clear()
+                    VOXlist:Clear()
                     for k, v in pairs( tbl ) do
-                        Blacklist:AddLine( k )
+                        VOXlist:AddLine( string.StripExtension( string.gsub( k, "models/", "", 1 ) ), string.StripExtension( string.gsub( v, "models/", "", 1 ) ) )
                     end
-                    Blacklist:SortByColumn( 1 )
+                    VOXlist:SortByColumn( 1 )
                 end )
 
-                function Menu.BlacklistPopulate()
-                    net.Start( "lf_playermodel_blacklist" )
+                function Menu.VOXlistPopulate()
+                    net.Start( "lf_playermodel_voxlist" )
                     net.WriteInt( 0, 3 )
                     net.SendToServer()
                 end
-                Menu.BlacklistPopulate()
+                Menu.VOXlistPopulate()
 
-                local t = panel:Add( "DLabel" )
-                t:Dock( TOP )
-                t:DockMargin( 0, 0, 0, 20 )
-                t:SetAutoStretchVertical( true )
-                t:SetText( "#EPS.Settings.GM_Blacklist.Desc" )
-                t:SetDark( true )
-                t:SetWrap( true )
+                local control = panel:Add( "DPanel" )
+                control:Dock( TOP )
+                control:DockMargin( 0, 0, 0, 0 )
+                --control:SetSize( 0, 60 )
+                control:SetPaintBackground( false )
 
-                local b = panel:Add( "DButton" )
-                b:Dock( TOP )
-                b:DockMargin( 0, 0, 0, 20 )
-                b:SetHeight( 25 )
-                b:SetText( "#EPS.Settings.GM_Blacklist.AddCurrent" )
+                local VOXinstalled = panel:Add( "DListView" )
+                VOXinstalled:Dock( TOP )
+                VOXinstalled:DockMargin( 0, 10, 0, 0 )
+                VOXinstalled:SetHeight( ( fh - 126 - 44 ) / 2 )
+                VOXinstalled:SetMultiSelect( false )
+                VOXinstalled:AddColumn( "#EPS.Settings.VOX.AvailableVOX" )
+
+                if istable( TFAVOX_Models ) then
+                    for k, v in pairs( TFAVOX_Models ) do
+                        VOXinstalled:AddLine( string.StripExtension( string.gsub( k, "models/", "", 1 ) ) )
+                    end
+                    VOXinstalled:SortByColumn( 1 )
+                end
+
+                local b = control:Add( "DButton" )
+                b:Dock( LEFT )
+                --b:DockPadding( 100, 0, 100, 0 )
+                b:SetWidth( 200 )
+                b:SetText( "#EPS.Settings.VOX.AssignToCurrent" )
                 b.DoClick = function()
-                    if GAMEMODE_NAME == "sandbox" then return end
-                    net.Start( "lf_playermodel_blacklist" )
+                    local sel = VOXinstalled:GetSelected()
+                    if not sel[1] then return end
+                    local v = "models/" .. tostring( sel[1]:GetValue(1) .. ".mdl" )
+                    local k = string.lower( player_manager.TranslatePlayerModel( Current.model ) )
+                    net.Start( "lf_playermodel_voxlist" )
                     net.WriteInt( 1, 3 )
-                    net.WriteString( GAMEMODE_NAME )
+                    net.WriteString( k )
+                    net.WriteString( v )
                     net.SendToServer()
                 end
 
-                local TextEntry = panel:Add( "DTextEntry" )
-                TextEntry:Dock( TOP )
-                TextEntry:DockMargin( 0, 0, 0, 10 )
-                TextEntry:SetHeight( 20 )
-
-                local b = panel:Add( "DButton" )
-                b:Dock( TOP )
-                b:DockMargin( 0, 0, 0, 20 )
-                b:SetHeight( 20 )
-                b:SetText( "#EPS.Settings.GM_Blacklist.ManuallyAddGM" )
-                b.DoClick = function()
-                    local name = TextEntry:GetValue()
-                    if name == "" or name == "sandbox" then return end
-                    net.Start( "lf_playermodel_blacklist" )
-                    net.WriteInt( 1, 3 )
-                    net.WriteString( name )
-                    net.SendToServer()
-                end
-
-                local b = panel:Add( "DButton" )
-                b:Dock( TOP )
-                b:DockMargin( 0, 0, 0, 0 )
-                b:SetHeight( 25 )
-                b:SetText( "#EPS.Settings.GM_Blacklist.RemoveSelected" )
+                local b = control:Add( "DButton" )
+                b:Dock( RIGHT )
+                --b:DockPadding( 100, 0, 100, 0 )
+                b:SetWidth( 170 )
+                b:SetText( "#EPS.Settings.VOX.RemoveSelected" )
                 b.DoClick = function()
                     local tbl = { }
-                    local sel = Blacklist:GetSelected()
+                    local sel = VOXlist:GetSelected()
                     for k, v in pairs( sel ) do
-                        local name = tostring( v:GetValue(1) )
+                        local name = "models/" .. tostring( v:GetValue(1) .. ".mdl" )
                         table.insert( tbl, name )
                     end
-                    net.Start( "lf_playermodel_blacklist" )
+                    net.Start( "lf_playermodel_voxlist" )
                     net.WriteInt( 2, 3 )
                     net.WriteTable( tbl )
                     net.SendToServer()
                 end
 
-
-                if TFAVOX_Models then
-
-                    local panel = moretab:Add( "DPanel" )
-                    moretab:AddSheet( "#EPS.Settings.VOX", panel, "icon16/sound.png" )
-                    panel:DockPadding( 10, 10, 10, 10 )
-
-                    local VOXlist = panel:Add( "DListView" )
-                    VOXlist:Dock( TOP )
-                    VOXlist:DockMargin( 0, 0, 0, 10 )
-                    VOXlist:SetHeight( ( fh - 126 - 44 ) / 2 ) -- 260
-                    VOXlist:SetMultiSelect( true )
-                    VOXlist:AddColumn( "#EPS.Settings.VOX.PlayerModel" )
-                    VOXlist:AddColumn( "#EPS.Settings.VOX.Assigned" )
-
-                    net.Receive("lf_playermodel_voxlist", function()
-                        local tbl = net.ReadTable()
-                        VOXlist:Clear()
-                        for k, v in pairs( tbl ) do
-                            VOXlist:AddLine( string.StripExtension( string.gsub( k, "models/", "", 1 ) ), string.StripExtension( string.gsub( v, "models/", "", 1 ) ) )
-                        end
-                        VOXlist:SortByColumn( 1 )
-                    end )
-
-                    function Menu.VOXlistPopulate()
-                        net.Start( "lf_playermodel_voxlist" )
-                        net.WriteInt( 0, 3 )
-                        net.SendToServer()
-                    end
-                    Menu.VOXlistPopulate()
-
-                    local control = panel:Add( "DPanel" )
-                    control:Dock( TOP )
-                    control:DockMargin( 0, 0, 0, 0 )
-                    --control:SetSize( 0, 60 )
-                    control:SetPaintBackground( false )
-
-                    local VOXinstalled = panel:Add( "DListView" )
-                    VOXinstalled:Dock( TOP )
-                    VOXinstalled:DockMargin( 0, 10, 0, 0 )
-                    VOXinstalled:SetHeight( ( fh - 126 - 44 ) / 2 )
-                    VOXinstalled:SetMultiSelect( false )
-                    VOXinstalled:AddColumn( "#EPS.Settings.VOX.AvailableVOX" )
-
-                    if istable( TFAVOX_Models ) then
-                        for k, v in pairs( TFAVOX_Models ) do
-                            VOXinstalled:AddLine( string.StripExtension( string.gsub( k, "models/", "", 1 ) ) )
-                        end
-                        VOXinstalled:SortByColumn( 1 )
-                    end
-
-                    local b = control:Add( "DButton" )
-                    b:Dock( LEFT )
-                    --b:DockPadding( 100, 0, 100, 0 )
-                    b:SetWidth( 200 )
-                    b:SetText( "#EPS.Settings.VOX.AssignToCurrent" )
-                    b.DoClick = function()
-                        local sel = VOXinstalled:GetSelected()
-                        if not sel[1] then return end
-                        local v = "models/" .. tostring( sel[1]:GetValue(1) .. ".mdl" )
-                        local k = string.lower( player_manager.TranslatePlayerModel( Current.model ) )
-                        net.Start( "lf_playermodel_voxlist" )
-                        net.WriteInt( 1, 3 )
-                        net.WriteString( k )
-                        net.WriteString( v )
-                        net.SendToServer()
-                    end
-
-                    local b = control:Add( "DButton" )
-                    b:Dock( RIGHT )
-                    --b:DockPadding( 100, 0, 100, 0 )
-                    b:SetWidth( 170 )
-                    b:SetText( "#EPS.Settings.VOX.RemoveSelected" )
-                    b.DoClick = function()
-                        local tbl = { }
-                        local sel = VOXlist:GetSelected()
-                        for k, v in pairs( sel ) do
-                            local name = "models/" .. tostring( v:GetValue(1) .. ".mdl" )
-                            table.insert( tbl, name )
-                        end
-                        net.Start( "lf_playermodel_voxlist" )
-                        net.WriteInt( 2, 3 )
-                        net.WriteTable( tbl )
-                        net.SendToServer()
-                    end
-
-                end
-
             end
 
+        end
 
-            local panel = moretab:Add( "DPanel" )
-            moretab:AddSheet( "#EPS.Settings.Info", panel, "icon16/information.png" )
-            panel:DockPadding( 0, 0, 0, 0 )
 
-            local t = panel:Add( "DHTML" )
-            t:Dock( FILL )
-            --t:DockMargin( 0, 0, 0, 15 )
-            --t:SetHeight( 260 )
-            t:SetAllowLua( true )
-            t:AddFunction( "url", "open", function( str ) gui.OpenURL( str ) end )
-            t:AddFunction( "url", "copy", function( str ) SetClipboardText( str ) end )
+        local panel = moretab:Add( "DPanel" )
+        moretab:AddSheet( "#EPS.Settings.Info", panel, "icon16/information.png" )
+        panel:DockPadding( 0, 0, 0, 0 )
 
-            local title = string.format(language.GetPhrase("EPS.Title"),EPS_VERSION)
+        local t = panel:Add( "DHTML" )
+        t:Dock( FILL )
+        --t:DockMargin( 0, 0, 0, 15 )
+        --t:SetHeight( 260 )
+        t:SetAllowLua( true )
+        t:AddFunction( "url", "open", function( str ) gui.OpenURL( str ) end )
+        t:AddFunction( "url", "copy", function( str ) SetClipboardText( str ) end )
 
-            local intro = [[Created by: <a href="javascript:url.open( 'https://steamcommunity.com/profiles/76561198105279898' )" oncontextmenu="url.copy( 'https://steamcommunity.com/profiles/76561198105279898' )">LibertyForce</a>.<br>
-            Viewmodel Support: <a href="javascript:url.open( 'https://steamcommunity.com/profiles/76561198254662493' )" oncontextmenu="url.copy( 'https://steamcommunity.com/profiles/76561198254662493' )">Fesiug</a><br>
-            Viewmodel Preview: <a href="javascript:url.open( 'https://steamcommunity.com/profiles/76561198005173328' )" oncontextmenu="url.copy( 'https://steamcommunity.com/profiles/76561198005173328' )">YuRaNnNzZZ</a><br>
-            Localization Support: <a href="javascript:url.open( 'https://steamcommunity.com/profiles/76561198314221237' )" oncontextmenu="url.copy( 'https://steamcommunity.com/profiles/76561198314221237' )">Insane Black Rock Shooter</a><br>
-            Serverside Workshop Support: <a href="javascript:url.open( 'https://steamcommunity.com/profiles/76561198073759827' )" oncontextmenu="url.copy( 'https://steamcommunity.com/profiles/76561198073759827' )">Unaverage Joe.</a><br>
-            Thank you for installing this addon! Enjoying it?<br><a href="javascript:url.open( 'http://steamcommunity.com/sharedfiles/filedetails/?id=3717454112' )" oncontextmenu="url.copy( 'http://steamcommunity.com/sharedfiles/filedetails/?id=3717454112' )">Please leave a LIKE on the workshop page.</a>]]
-            if not game.SinglePlayer() and not LocalPlayer():IsSuperAdmin() then
-                intro = [[This server is running Enhanced PlayerModel Selector by <a href="javascript:url.open( 'http://steamcommunity.com/id/libertyforce' )" oncontextmenu="url.copy( 'http://steamcommunity.com/id/libertyforce' )">LibertyForce</a>. Enjoying it?<br>
-                <a href="javascript:url.open( 'http://steamcommunity.com/sharedfiles/filedetails/?id=3717454112' )" oncontextmenu="url.copy( 'http://steamcommunity.com/sharedfiles/filedetails/?id=3717454112' )">Click here to download this addon for SinglePlayer.</a>]]
-            end
+        local title = string.format(language.GetPhrase("EPS.Title"),EPS_VERSION)
 
-            t:SetHTML( [[
-                <html>
-                    <head>
-                        <style type="text/css">
-                            body {
-                                background-color: #1b2838;
-                                font-family: Arial, Helvetica, Verdana, sans-serif;
-                                font-size: 14px;
-                                color: #acb2b8;
-                            }
-                            h1, h2, h3 {
-                                font-size: 15px;
-                                color: #5aa9d6;
-                                font-weight: bold;
-                                margin: 0;
-                                padding: 0px 0px 4px 0px;
-                            }
-                            h3, h4, h5, h6 {
-                                margin: 0;
-                                padding: 2px 0px 6px 0px;
-                            }
-                            h1 {
-                                font-size: 20px;
-                            }
-                            a {
-                                text-decoration: none;
-                                color: #ffffff;
-                            }
-                            a:hover {
-                                color:#66C0F4;
-                            }
-                            table {
-                                border: 1px solid #4d4d4d;
-                                border-spacing: 0px;
-                                padding: 4px;
-                            }
-                            table th {
-                                border: 1px solid #4d4d4d;
-                                padding: 4px;
-                                margin: 0px;
-                            }
-                            table td {
-                                border: 1px solid #4d4d4d;
-                                padding: 4px;
-                                margin: 0px;
-                            }
-                        </style>
-                    </head>
-                    <body>
-                        <h1>]] .. title .. [[</h1> 
-                        <h1>]] .. intro .. [[</h1>
-                        <h2>Compatible Addons</h1>
-                        <p>Enhanced Playermodel Selector provides additional functionality with those addons installed:
-                        <ul>
-                            <li><a href="javascript:url.open( 'https://steamcommunity.com/sharedfiles/filedetails/?id=112806637' )" oncontextmenu="url.copy( 'https://steamcommunity.com/sharedfiles/filedetails/?id=112806637' )">Gmod Legs 3</a></li>
-                            <li><a href="javascript:url.open( 'https://steamcommunity.com/sharedfiles/filedetails/?id=742906087' )" oncontextmenu="url.copy( 'https://steamcommunity.com/sharedfiles/filedetails/?id=742906087' )">TFA-VOX || Player Callouts Redefined</a></li>
-                        </ul></p>
-                        <h2>More addons</h2>
-                        <p><ul>
-                            <li><a href="javascript:url.open( 'https://steamcommunity.com/sharedfiles/filedetails/?id=624173012' )" oncontextmenu="url.copy( 'https://steamcommunity.com/sharedfiles/filedetails/?id=624173012' )">Simple Addon Manager</a><br>
-                            <small>Tired of the slow and annoying addon manager included in Gmod? Here comes and easy to use and efficient alternative that allows you to handle even large addon collections.<br>
-                            + Toggle multiple addons at once<br>+ Add tags to your addons<br>+ Cleanup your addons by uninstalling them at once</small><br>&nbsp;</li>
-                            <li><a href="javascript:url.open( 'https://steamcommunity.com/sharedfiles/filedetails/?id=492765756' )" oncontextmenu="url.copy( 'https://steamcommunity.com/sharedfiles/filedetails/?id=492765756' )">Weapon: Setup, Transfer And Restore</a><br>
-                            <small>This addon provides an easy way to restore all your weapons and ammo after you die, without having to spawn them again.</small><br>&nbsp;</li>
-                            <li><a href="javascript:url.open( 'https://steamcommunity.com/sharedfiles/filedetails/?id=351603470' )" oncontextmenu="url.copy( 'https://steamcommunity.com/sharedfiles/filedetails/?id=351603470' )">Anti-FriendlyFire (NPC)</a><br>
-                            <small>If you where ever annoyed by your allies killing each other in friendly fire, which made large NPC battle pretty much useless, then you have just found the solutionnot  This mod allows you to turn off Friendly Fire towards and between NPCs.</small></li>
-                        </ul></p>
-                        <table align=center>
-                            <tr align=center>
-                                <th><h1>Translators:</h1></th> <th><h1>Language:</h1></th>
-                            </tr>
-                            <tr align=center>
-                                <td><a href="javascript:url.open( 'https://steamcommunity.com/id/IBRS-4Ever' )" oncontextmenu="url.copy( 'https://steamcommunity.com/id/IBRS-4Ever' )">Insane Black Rock Shooter</a></td> <td>Simplified Chinese</td>
-                            </tr>
-                            <tr align=center>
-                                <td><a href="javascript:url.open( 'https://steamcommunity.com/id/berrygaming' )" oncontextmenu="url.copy( 'https://steamcommunity.com/id/berrygaming' )">Berry</a></td> <td>Russian</td>
-                            </tr>
-                            <tr align=center>
-                                <td><a href="javascript:url.open( 'https://steamcommunity.com/id/TheRealStann' )" oncontextmenu="url.copy( 'https://steamcommunity.com/id/TheRealStann' )">Stann</a></td> <td>Polish</td>
-                            </tr>
-                            <tr align=center>
-                                <td><a href="javascript:url.open( 'https://github.com/SheepYhangCN' )" oncontextmenu="url.copy( 'https://github.com/SheepYhangCN' )">憨憨羊の宇航鸽鸽</a></td> <td>Traditional Chinese</td>
-                            </tr>
-                            <tr align=center>
-                                <td><a href="javascript:url.open( 'https://steamcommunity.com/id/talhaberkay' )" oncontextmenu="url.copy( 'https://steamcommunity.com/id/talhaberkay' )">Tora</a></td> <td>Turkish</td>
-                            </tr>
-                            <tr align=center>
-                                <td><a href="javascript:url.open( 'https://steamcommunity.com/id/GermanMaKo' )" oncontextmenu="url.copy( 'https://steamcommunity.com/id/GermanMaKo' )">GermanMaKo</a></td> <td>German</td>
-                            </tr>
-                            <tr align=center>
-                                <td><a href="javascript:url.open( 'https://steamcommunity.com/id/mikgazer/' )" oncontextmenu="url.copy( 'https://steamcommunity.com/id/mikgazer/' )">Hana</a></td> <td>Spanish</td>
-                            </tr>
-                            <tr align=center>
-                                <td><a href="javascript:url.open( 'https://github.com/PlucktheDragon' )" oncontextmenu="url.copy( 'https://github.com/PlucktheDragon' )">PlucktheDragon</a></td> <td>French</td>
-                            </tr>
-                            <tr align=center>
-                                <td>Machine Translation</td> <td>Korean</td>
-                            </tr>
-                            <tr align=center>
-                                <td>Machine Translation</td> <td>Czech</td>
-                            </tr>
-                        </table>
-                        <h2 style="font-size: 10px">Left click: Open in Steam Overlay.<br>Right click: Copy URL to clipboard for use in browser.</h2>
-                    </body>
-                </html>
-            ]] )
+        local intro = [[Created by: <a href="javascript:url.open( 'https://steamcommunity.com/profiles/76561198105279898' )" oncontextmenu="url.copy( 'https://steamcommunity.com/profiles/76561198105279898' )">LibertyForce</a>.<br>
+        Viewmodel Support: <a href="javascript:url.open( 'https://steamcommunity.com/profiles/76561198254662493' )" oncontextmenu="url.copy( 'https://steamcommunity.com/profiles/76561198254662493' )">Fesiug</a><br>
+        Viewmodel Preview: <a href="javascript:url.open( 'https://steamcommunity.com/profiles/76561198005173328' )" oncontextmenu="url.copy( 'https://steamcommunity.com/profiles/76561198005173328' )">YuRaNnNzZZ</a><br>
+        Localization Support: <a href="javascript:url.open( 'https://steamcommunity.com/profiles/76561198314221237' )" oncontextmenu="url.copy( 'https://steamcommunity.com/profiles/76561198314221237' )">Insane Black Rock Shooter</a><br>
+        Serverside Workshop Support: <a href="javascript:url.open( 'https://steamcommunity.com/profiles/76561198073759827' )" oncontextmenu="url.copy( 'https://steamcommunity.com/profiles/76561198073759827' )">Unaverage Joe.</a><br>
+        Thank you for installing this addon! Enjoying it?<br><a href="javascript:url.open( 'http://steamcommunity.com/sharedfiles/filedetails/?id=3717454112' )" oncontextmenu="url.copy( 'http://steamcommunity.com/sharedfiles/filedetails/?id=3717454112' )">Please leave a LIKE on the workshop page.</a>]]
+        if not game.SinglePlayer() and not LocalPlayer():IsSuperAdmin() then
+            intro = [[This server is running Enhanced PlayerModel Selector by <a href="javascript:url.open( 'http://steamcommunity.com/id/libertyforce' )" oncontextmenu="url.copy( 'http://steamcommunity.com/id/libertyforce' )">LibertyForce</a>. Enjoying it?<br>
+            <a href="javascript:url.open( 'http://steamcommunity.com/sharedfiles/filedetails/?id=3717454112' )" oncontextmenu="url.copy( 'http://steamcommunity.com/sharedfiles/filedetails/?id=3717454112' )">Click here to download this addon for SinglePlayer.</a>]]
+        end
+
+        t:SetHTML( [[
+            <html>
+                <head>
+                    <style type="text/css">
+                        body {
+                            background-color: #1b2838;
+                            font-family: Arial, Helvetica, Verdana, sans-serif;
+                            font-size: 14px;
+                            color: #acb2b8;
+                        }
+                        h1, h2, h3 {
+                            font-size: 15px;
+                            color: #5aa9d6;
+                            font-weight: bold;
+                            margin: 0;
+                            padding: 0px 0px 4px 0px;
+                        }
+                        h3, h4, h5, h6 {
+                            margin: 0;
+                            padding: 2px 0px 6px 0px;
+                        }
+                        h1 {
+                            font-size: 20px;
+                        }
+                        a {
+                            text-decoration: none;
+                            color: #ffffff;
+                        }
+                        a:hover {
+                            color:#66C0F4;
+                        }
+                        table {
+                            border: 1px solid #4d4d4d;
+                            border-spacing: 0px;
+                            padding: 4px;
+                        }
+                        table th {
+                            border: 1px solid #4d4d4d;
+                            padding: 4px;
+                            margin: 0px;
+                        }
+                        table td {
+                            border: 1px solid #4d4d4d;
+                            padding: 4px;
+                            margin: 0px;
+                        }
+                    </style>
+                </head>
+                <body>
+                    <h1>]] .. title .. [[</h1> 
+                    <h1>]] .. intro .. [[</h1>
+                    <h2>Compatible Addons</h1>
+                    <p>Enhanced Playermodel Selector provides additional functionality with those addons installed:
+                    <ul>
+                        <li><a href="javascript:url.open( 'https://steamcommunity.com/sharedfiles/filedetails/?id=112806637' )" oncontextmenu="url.copy( 'https://steamcommunity.com/sharedfiles/filedetails/?id=112806637' )">Gmod Legs 3</a></li>
+                        <li><a href="javascript:url.open( 'https://steamcommunity.com/sharedfiles/filedetails/?id=742906087' )" oncontextmenu="url.copy( 'https://steamcommunity.com/sharedfiles/filedetails/?id=742906087' )">TFA-VOX || Player Callouts Redefined</a></li>
+                    </ul></p>
+                    <h2>More addons</h2>
+                    <p><ul>
+                        <li><a href="javascript:url.open( 'https://steamcommunity.com/sharedfiles/filedetails/?id=624173012' )" oncontextmenu="url.copy( 'https://steamcommunity.com/sharedfiles/filedetails/?id=624173012' )">Simple Addon Manager</a><br>
+                        <small>Tired of the slow and annoying addon manager included in Gmod? Here comes and easy to use and efficient alternative that allows you to handle even large addon collections.<br>
+                        + Toggle multiple addons at once<br>+ Add tags to your addons<br>+ Cleanup your addons by uninstalling them at once</small><br>&nbsp;</li>
+                        <li><a href="javascript:url.open( 'https://steamcommunity.com/sharedfiles/filedetails/?id=492765756' )" oncontextmenu="url.copy( 'https://steamcommunity.com/sharedfiles/filedetails/?id=492765756' )">Weapon: Setup, Transfer And Restore</a><br>
+                        <small>This addon provides an easy way to restore all your weapons and ammo after you die, without having to spawn them again.</small><br>&nbsp;</li>
+                        <li><a href="javascript:url.open( 'https://steamcommunity.com/sharedfiles/filedetails/?id=351603470' )" oncontextmenu="url.copy( 'https://steamcommunity.com/sharedfiles/filedetails/?id=351603470' )">Anti-FriendlyFire (NPC)</a><br>
+                        <small>If you where ever annoyed by your allies killing each other in friendly fire, which made large NPC battle pretty much useless, then you have just found the solutionnot  This mod allows you to turn off Friendly Fire towards and between NPCs.</small></li>
+                    </ul></p>
+                    <table align=center>
+                        <tr align=center>
+                            <th><h1>Translators:</h1></th> <th><h1>Language:</h1></th>
+                        </tr>
+                        <tr align=center>
+                            <td><a href="javascript:url.open( 'https://steamcommunity.com/id/IBRS-4Ever' )" oncontextmenu="url.copy( 'https://steamcommunity.com/id/IBRS-4Ever' )">Insane Black Rock Shooter</a></td> <td>Simplified Chinese</td>
+                        </tr>
+                        <tr align=center>
+                            <td><a href="javascript:url.open( 'https://steamcommunity.com/id/berrygaming' )" oncontextmenu="url.copy( 'https://steamcommunity.com/id/berrygaming' )">Berry</a></td> <td>Russian</td>
+                        </tr>
+                        <tr align=center>
+                            <td><a href="javascript:url.open( 'https://steamcommunity.com/id/TheRealStann' )" oncontextmenu="url.copy( 'https://steamcommunity.com/id/TheRealStann' )">Stann</a></td> <td>Polish</td>
+                        </tr>
+                        <tr align=center>
+                            <td><a href="javascript:url.open( 'https://github.com/SheepYhangCN' )" oncontextmenu="url.copy( 'https://github.com/SheepYhangCN' )">憨憨羊の宇航鸽鸽</a></td> <td>Traditional Chinese</td>
+                        </tr>
+                        <tr align=center>
+                            <td><a href="javascript:url.open( 'https://steamcommunity.com/id/talhaberkay' )" oncontextmenu="url.copy( 'https://steamcommunity.com/id/talhaberkay' )">Tora</a></td> <td>Turkish</td>
+                        </tr>
+                        <tr align=center>
+                            <td><a href="javascript:url.open( 'https://steamcommunity.com/id/GermanMaKo' )" oncontextmenu="url.copy( 'https://steamcommunity.com/id/GermanMaKo' )">GermanMaKo</a></td> <td>German</td>
+                        </tr>
+                        <tr align=center>
+                            <td><a href="javascript:url.open( 'https://steamcommunity.com/id/mikgazer/' )" oncontextmenu="url.copy( 'https://steamcommunity.com/id/mikgazer/' )">Hana</a></td> <td>Spanish</td>
+                        </tr>
+                        <tr align=center>
+                            <td><a href="javascript:url.open( 'https://github.com/PlucktheDragon' )" oncontextmenu="url.copy( 'https://github.com/PlucktheDragon' )">PlucktheDragon</a></td> <td>French</td>
+                        </tr>
+                        <tr align=center>
+                            <td>Machine Translation</td> <td>Korean</td>
+                        </tr>
+                        <tr align=center>
+                            <td>Machine Translation</td> <td>Czech</td>
+                        </tr>
+                    </table>
+                    <h2 style="font-size: 10px">Left click: Open in Steam Overlay.<br>Right click: Copy URL to clipboard for use in browser.</h2>
+                </body>
+            </html>
+        ]] )
 
 
 
@@ -1833,55 +1889,55 @@ function Menu.Setup()
     -- Updating
 
     function Menu.UpdateBodyGroups( pnl, val )
-        local handsTabActive = Menu.IsHandsTabActive()
+        local handsTabActive = Menu.IsHandsTabActive() or false
 
         if ( pnl.type == "bgroup" ) then
 
-            if ( not handsTabActive ) then ModelPreview.Entity:SetBodygroup( pnl.typenum, math.Round( val ) ) end
+            if ( not handsTabActive ) then ModelPreview.Entity:SetBodygroup( pnl.typenum, math.floor( val ) ) end
 
             local str = string.Explode( " ", Current.bodygroups or "" )
             if ( #str < pnl.typenum + 1 ) then for i = 1, pnl.typenum + 1 do str[ i ] = str[ i ] or 0 end end
-            str[ pnl.typenum + 1 ] = math.Round( val )
+            str[ pnl.typenum + 1 ] = math.floor( val )
             Current.bodygroups = table.concat( str, " " )
 
         elseif ( pnl.type == "flex" ) then
 
-            if ( not handsTabActive ) then ModelPreview.Entity:SetFlexWeight( pnl.typenum, math.Round( val, 2 ) ) end
+            if ( not handsTabActive ) then ModelPreview.Entity:SetFlexWeight( pnl.typenum, math.round( val, 2 ) ) end
 
             local str = string.Explode( " ", Current.flex or "" )
             if ( #str < pnl.typenum + 1 ) then for i = 1, pnl.typenum + 1 do str[ i ] = str[ i ] or 0 end end
-            str[ pnl.typenum + 1 ] = math.Round( val, 2 )
+            str[ pnl.typenum + 1 ] = math.round( val, 2 )
             Current.flex = table.concat( str, " " )
 
         elseif ( pnl.type == "skin" ) then
 
-            if ( not handsTabActive ) then ModelPreview.Entity:SetSkin( math.Round( val ) ) end
-            Current.skin = math.Round( val )
+            if ( not handsTabActive ) then ModelPreview.Entity:SetSkin( math.floor( val ) ) end
+            Current.skin = math.floor( val )
 
         elseif ( pnl.type == "h__bgroup" ) then
 
-            if true or handsTabActive  then ModelPreview.EntityHands:SetBodygroup( pnl.typenum, math.Round( val ) ) end
+            if true or handsTabActive  then ModelPreview.EntityHands:SetBodygroup( pnl.typenum, math.floor( val ) ) end
 
             local str = string.Explode( " ", Current.handbodygroups or "" )
             if ( #str < pnl.typenum + 1 ) then for i = 1, pnl.typenum + 1 do str[ i ] = str[ i ] or 0 end end
-            str[ pnl.typenum + 1 ] = math.Round( val )
+            str[ pnl.typenum + 1 ] = math.floor( val )
             Current.handgroups = table.concat( str, " " )
 
         elseif ( pnl.type == "h__skin" ) then
 
-            if true or handsTabActive  then ModelPreview.EntityHands:SetSkin( math.Round( val ) ) end
-            Current.handskin = math.Round( val )
+            if true or handsTabActive  then ModelPreview.EntityHands:SetSkin( math.floor( val ) ) end
+            Current.handskin = math.floor( val )
 
         end
     end
 
     function Menu.RebuildBodygroupTab()
-        bdcontrolspanel:Clear()
-        h__bdcontrolspanel:Clear()
+        bdControlspanel:Clear()
+        h__bdControlspanel:Clear()
         flexcontrolspanel:Clear()
 
-        bgtab.Tab:SetVisible( false )
-        h__bgtab.Tab:SetVisible( false )
+        bgTab.Tab:SetVisible( false )
+        h__bgTab.Tab:SetVisible( false )
         flextab.Tab:SetVisible( false )
 
         local nskins = ModelPreview.Entity:SkinCount() - 1
@@ -1897,11 +1953,11 @@ function Menu.Setup()
             skins.type = "skin"
             skins.OnValueChanged = Menu.UpdateBodyGroups
 
-            bdcontrolspanel:AddItem( skins )
+            bdControlspanel:AddItem( skins )
 
             ModelPreview.Entity:SetSkin( Current.skin )
 
-            bgtab.Tab:SetVisible( true )
+            bgTab.Tab:SetVisible( true )
         end
 
         local groups = string.Explode( " ", Current.bodygroups or "" )
@@ -1920,7 +1976,7 @@ function Menu.Setup()
             bgroup:SetValue( groups[ k + 1 ] or 0 )
             -- bgroup.OnValueChanged = Menu.UpdateBodyGroups
 
-            bdcontrolspanel:AddItem( bgroup )
+            bdControlspanel:AddItem( bgroup )
 
             local tgroup
             local submdls = ModelPreview.Entity:GetBodyGroups()[k + 1].submodels
@@ -1937,7 +1993,7 @@ function Menu.Setup()
 
                 if not GetConVar("cl_playermodel_selector_translate_bodygroup"):GetBool() or language.GetPhrase( "eps.model_bg." .. string.lower(mdl) ) == "eps.model_bg." .. string.lower(mdl) then tgroup:SetText( string.NiceName( mdl )) else tgroup:SetText( language.GetPhrase( "eps.model_bg." .. mdl ) ) end
                 if GetConVar("sv_playermodel_selector_debug"):GetBool() and language.GetPhrase( "eps.model_bg." .. string.lower(mdl) ) == "eps.model_bg." .. string.lower(mdl) then print("eps.model_bg." .. string.lower(mdl) .. "=") end
-                bdcontrolspanel:AddItem( tgroup )
+                bdControlspanel:AddItem( tgroup )
             end
 
             bgroup.OnValueChanged = function(something1, val)
@@ -1957,7 +2013,7 @@ function Menu.Setup()
 
             ModelPreview.Entity:SetBodygroup( k, groups[ k + 1 ] or 0 )
 
-            bgtab.Tab:SetVisible( true )
+            bgTab.Tab:SetVisible( true )
         end
 
         -- Hands
@@ -1975,11 +2031,11 @@ function Menu.Setup()
                 skins.type = "h__skin"
                 skins.OnValueChanged = Menu.UpdateBodyGroups
 
-                h__bdcontrolspanel:AddItem( skins )
+                h__bdControlspanel:AddItem( skins )
 
                 ModelPreview.EntityHands:SetSkin( Current.handskin )
 
-                h__bgtab.Tab:SetVisible( true )
+                h__bgTab.Tab:SetVisible( true )
             end
 
             local groups = string.Explode( " ", Current.handgroups or "" )
@@ -1998,7 +2054,7 @@ function Menu.Setup()
                 bgroup:SetValue( groups[ k + 1 ] or 0 )
                 bgroup.OnValueChanged = Menu.UpdateBodyGroups
 
-                h__bdcontrolspanel:AddItem( bgroup )
+                h__bdControlspanel:AddItem( bgroup )
 
                 local tgroup
                 local submdls = ModelPreview.EntityHands:GetBodyGroups()[k + 1].submodels
@@ -2009,7 +2065,7 @@ function Menu.Setup()
                     tgroup:DockMargin(10, -15, 0, 0)
                     tgroup:SetText( string.NiceName( mdl ))
 
-                    h__bdcontrolspanel:AddItem( tgroup )
+                    h__bdControlspanel:AddItem( tgroup )
                 end
 
                 bgroup.OnValueChanged = function(something1, val)
@@ -2022,7 +2078,7 @@ function Menu.Setup()
                 end
                 ModelPreview.EntityHands:SetBodygroup( k, groups[ k + 1 ] or 0 )
 
-                h__bgtab.Tab:SetVisible( true )
+                h__bgTab.Tab:SetVisible( true )
             end
         end
         -- Hands end
@@ -2064,8 +2120,8 @@ function Menu.Setup()
             end
         end
 
-        Menu.Right.tabScroller:InvalidateLayout( true )
-        Menu.Right:InvalidateLayout( true )
+        sheet.tabScroller:InvalidateLayout( true )
+        sheet:InvalidateLayout( true )
     end
 
     local handsAnimModel = Model( "models/weapons/chand_checker.mdl" )
@@ -2081,7 +2137,7 @@ function Menu.Setup()
         ModelPreview.EntityHandsAnim:SetNoDraw( true )
         ModelPreview.EntityHandsAnim:SetPos( Vector( 0, 0, 0 ) )
 
-        if true or ( Menu.IsHandsTabActive() ) then
+        if true or Menu.IsHandsTabActive() then
             ModelPreview:SetModel( handsAnimModel )
             local model = Current.hand
 
@@ -2120,7 +2176,6 @@ function Menu.Setup()
             util.PrecacheModel( modelname )
             ModelPreview:SetModel( modelname )
             ModelPreview.Entity.GetPlayerColor = function() return Vector( playercolor:GetString() ) end
-            ModelPreview.Entity:SetPos( Vector( -100, 0, -61 ) )
 
             plycol:SetVector( Vector( playercolor:GetString() ) )
             wepcol:SetVector( Vector( weaponcolor:GetString() ) )
@@ -2132,7 +2187,7 @@ function Menu.Setup()
     end
 
     hook.Add("WSHL.BundleInitialized", "EPS_Refresh", function()
-        if IsValid(MainWindow) then
+        if IsValid(window) then
             Menu.UpdateFromConvars()
         end
     end)
@@ -2151,9 +2206,11 @@ function Menu.Setup()
 
     -- Hold to rotate
 
-    function ModelPreview:DragMousePress( button )
+    function ModelPreview:DragMousePress( btnId )
+        if ( btnId != MOUSE_LEFT and btnId != MOUSE_RIGHT and btnId != MOUSE_MIDDLE ) then return end
+
         self.PressX, self.PressY = input.GetCursorPos()
-        self.Pressed = button
+        self.Pressed = btnId
     end
 
     function ModelPreview:OnMouseWheeled( delta )
@@ -2161,7 +2218,7 @@ function Menu.Setup()
         self.Wheeled = true
     end
 
-    function ModelPreview:DragMouseRelease() self.Pressed = false end
+    function ModelPreview:DragMouseRelease() self.Pressed = nil end
 
     function ModelPreview:RunAnimation() -- override to restart hands animation
         if ( Menu.IsHandsTabActive() and self.Entity:GetCycle() > 0.99 ) then
@@ -2172,8 +2229,10 @@ function Menu.Setup()
     end
 
     local handsang = Angle( 0, 180, 0 )
-    local handspos = Vector( -2, 0, -2 )
+    local handspos = Vector( 85, 0, 55 )
 
+    ModelPreview.StoredFOV = 47
+    ModelPreview:SetFOV( ModelPreview.StoredFOV )
     function ModelPreview:LayoutEntity( Entity )
         if ( self.bAnimated ) then self:RunAnimation() end
 
@@ -2196,14 +2255,14 @@ function Menu.Setup()
 
             self:SetFOV( 36 ) -- PM FOV after switching back from Hands Tab
 
-            self.Pos = Vector( -100, 0, -61 )
-            self.Angles = Angle( angle_zero )
-            self.AngleOffset = Angle( angle_zero )
+            self.Pos = vector_origin
+            self.Angles = angle_zero
+            self.AngleOffset = angle_zero
         end
 
         if ( self.Pressed == MOUSE_LEFT ) then
             local mx, my = input.GetCursorPos()
-            self.Angles = self.Angles - Angle( 0, ( self.PressX or mx ) - mx, 0 )
+            self.Angles = self.Angles - Angle( 0, ( ( self.PressX or mx ) - mx ) / 2, 0 )
 
             self.PressX, self.PressY = input.GetCursorPos()
         end
@@ -2229,26 +2288,24 @@ function Menu.Setup()
 
         Entity:SetAngles( self.Angles )
         Entity:SetPos( self.Pos )
+
+        self:SetFOV( self.StoredFOV * math.min( ModelPreview:GetWide() / ModelPreview:GetTall(), 2.5 ) )
+
+        ModelPreview.Entity:SetEyeTarget( ModelPreview:GetCamPos() )
     end
 
-end
-
-function Menu.IsHandsTabActive()
-    if not IsValid(Menu.Right) then return false end
-
-    return Menu.Right:GetActiveTab().IsHandsTab
 end
 
 function Menu.Toggle()
     if LocalPlayer():IsAdmin() or GAMEMODE_NAME == "sandbox" or GetConVar( "sv_playermodel_selector_gamemodes" ):GetBool()
     then
-        if IsValid( MainWindow ) then
-            MainWindow:ToggleVisible()
+        if IsValid( window ) then
+            window:ToggleVisible()
         else
             Menu.Setup()
         end
     else
-        if IsValid( MainWindow ) then MainWindow:Close() end
+        if IsValid( window ) then window:Close() end
     end
 end
 
