@@ -367,8 +367,7 @@ function Menu.Setup()
     Menu.WorkshopButton:SetSize( Width + 15, 18 )
     Menu.WorkshopButton:SetPos( fw - (Width + 120), 3 )
     Menu.WorkshopButton.DoClick = function()
-        gui.OpenURL( "https://steamcommunity.com/sharedfiles/filedetails/?id=2247755443" )
-        SetClipboardText( "https://steamcommunity.com/sharedfiles/filedetails/?id=2247755443" )
+        gui.OpenURL( "https://steamcommunity.com/sharedfiles/filedetails/?id=3717454112" )
     end
 
     Menu.ApplyButton = ModelPreview:Add( "DButton" )
