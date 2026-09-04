@@ -45,7 +45,7 @@ net.Receive("lf_playermodel_workshop", function()
         local ply = player.GetBySteamID64(v)
         if ply then
             steamworks.FileInfo( k, function( result )
-                result = CheckValidAddon( result ) or result
+                result = EPS_CheckValidAddon( result ) or result
                 Queue[k] = result
                 Queue[k].ply = ply
                 Menu.QueuePopulate()
@@ -169,7 +169,7 @@ local function RequestAddon( wsid, action )
     action = action or EPS_REQUEST
     if action == EPS_REQUEST then
         steamworks.FileInfo( wsid, function( result )
-            if CheckValidAddon( result ) then
+            if EPS_CheckValidAddon( result ) then
                 if not History[wsid] then
                     History[wsid] = { }
                     History[wsid].previewid = result.previewid

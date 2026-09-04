@@ -14,11 +14,11 @@ end
 
 EPS_VERSION = "5.0.6 Experimental"
 
-local EPS_REQUEST = 0
-local EPS_APPROVE = 1
-local EPS_DENY = 2
-local EPS_REMOVE = 3
-local EPS_INFO = -1
+EPS_REQUEST = 0
+EPS_APPROVE = 1
+EPS_DENY = 2
+EPS_REMOVE = 3
+EPS_INFO = -1
 
 hook.Remove( "Think", "garbage_day_ChooseHandsModel" ) -- Remove the hook, so we can actually change hands. Fix for https://steamcommunity.com/sharedfiles/filedetails/?id=3226024708
 
