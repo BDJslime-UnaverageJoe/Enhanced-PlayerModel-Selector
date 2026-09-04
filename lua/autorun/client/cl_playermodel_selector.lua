@@ -520,6 +520,8 @@ function Menu.Setup()
                     menu:Open()
                 end
                 PanelSelect:AddPanel( icon )
+
+                ModelList:AddLine( name, model )
             end
         else
             local cateorized = {}
