@@ -508,6 +508,8 @@ function Menu.Setup()
 
         if BRANCH != "x86-64" and BRANCH != "dev" then
             for name, model in SortedPairs( player_manager.AllValidModels() ) do
+                if GetConVar( "cl_playermodel_selector_hide_defaults" ):GetBool() and DefaultPlayerModels[model] then continue end -- Testing, may have bugs.
+                if GetConVar( "cl_playermodel_selector_ignorehands" ):GetBool() and player_manager.TranslatePlayerHands(name).model == model then continue end -- No
                 local icon = vgui.Create( "SpawnIcon" )
                 icon:SetModel( model )
                 icon:SetSize( 64, 64 )
@@ -544,6 +546,9 @@ function Menu.Setup()
                 label.DoClick = function () end -- Unselectable
 
                 for _, info in SortedPairsByMemberValue( items, "title" ) do
+
+                    if GetConVar( "cl_playermodel_selector_hide_defaults" ):GetBool() and DefaultPlayerModels[info.model] then continue end -- Testing, may have bugs.
+                    if GetConVar( "cl_playermodel_selector_ignorehands" ):GetBool() and player_manager.TranslatePlayerHands(info.name).model == info.model then continue end -- No
 
                     local icon = vgui.Create( "SpawnIcon" )
                     icon:SetModel( info.model )
