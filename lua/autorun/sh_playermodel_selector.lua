@@ -12,7 +12,7 @@ if CLIENT then
 	include("enhanced_playermodel_selector/default_playermodels.lua")
 end
 
-EPS_VERSION = "5.0.6 Experimental"
+EPS_VERSION = "5.1.0 Experimental"
 
 EPS_REQUEST = 0
 EPS_APPROVE = 1

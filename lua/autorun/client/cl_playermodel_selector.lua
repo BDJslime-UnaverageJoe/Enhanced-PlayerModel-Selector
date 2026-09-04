@@ -117,20 +117,6 @@ cvars.AddChangeCallback("cl_playermodel", function(convar_name, value_old, value
     playermodelid:SetString(FindModelID(value_new))
 end)
 
-local function KeyboardOn( pnl )
-    if ( IsValid( window ) and IsValid( pnl ) and pnl:HasParent( window ) ) then
-        window:SetKeyboardInputEnabled( true )
-    end
-end
-hook.Add( "OnTextEntryGetFocus", "lf_playermodel_keyboard_on", KeyboardOn )
-local function KeyboardOff( pnl )
-    if ( IsValid( window ) and IsValid( pnl ) and pnl:HasParent( window ) ) then
-        window:SetKeyboardInputEnabled( false )
-    end
-end
-hook.Add( "OnTextEntryLoseFocus", "lf_playermodel_keyboard_off", KeyboardOff )
-
-
 local function LoadPlayerModel()
     RunConsoleCommand( "cl_playermodel", Current.model )
     playerbodygroups:SetString( Current.bodygroups )
@@ -258,7 +244,6 @@ function Menu.Setup()
     window:SetMinHeight( 250 )
     window:Center()
     window:MakePopup()
-    window:SetKeyboardInputEnabled( false )
 
     local divider = window:Add( "DHorizontalDivider" )
     divider:Dock( FILL )
@@ -422,7 +407,7 @@ function Menu.Setup()
     Menu.ApplyButton = ModelPreview:Add( "DButton" )
     Menu.ApplyButton:SetText( "#EPS.ApplyPM" )
     local ApplyButtonWidth, ApplyButtonHeight = Menu.ApplyButton:GetTextSize()
-    Menu.ApplyButton:SetPos( fw / 2 - ApplyButtonWidth * 1.35, 0 )
+    Menu.ApplyButton:SetPos( 5, 0 )
     Menu.ApplyButton:SetSize( ApplyButtonWidth + 30, 30 )
     Menu.ApplyButton.DoClick = LoadPlayerModel
 
@@ -460,85 +445,142 @@ function Menu.Setup()
     Menu.ModelFilter:DockMargin( 8, 0, 8, 8 )
     Menu.ModelFilter:Dock( TOP )
 
+    local PanelSelect  = modelListPnl:Add( "DPanelSelect" )
+    modelListPnl:AddSheet( "#EPS.Model.Icons", PanelSelect, "icon16/application_view_tile.png" )
+    PanelSelect:Dock( FILL )
+
+    local ModelList = modelListPnl:Add( "DListView" )
+    modelListPnl:AddSheet( "#EPS.Model.Table", ModelList, "icon16/application_view_list.png" )
+    ModelList:DockMargin( 5, 0, 5, 5 )
+    ModelList:Dock( FILL )
+    ModelList:SetMultiSelect( false )
+    ModelList:AddColumn( "#EPS.Model.Table.Model" )
+    ModelList:AddColumn( "#EPS.Model.Table.Path" )
+    ModelList.OnRowSelected = function( panel, rowIndex, row )
+        local name = tostring( row:GetValue(1) )
+        Current.model = name
+        Current.bodygroups = "0"
+        Current.skin = 0
+        Current.flex = "0"
+        Current.hand = ""
+        Current.handgroups = "0"
+        Current.handskin = 0
+        Current.modelid = FindModelID(name)
+        Menu.UpdateFromConvars()
+    end
+
     Menu.ModelFilter:SetUpdateOnType( true )
-    Menu.ModelFilter.OnValueChange = function() Menu.ModelPopulate() end
+    Menu.ModelFilter.OnValueChange = function( s, str )
+        for id, pnl in pairs( PanelSelect:GetItems() ) do
+            if ( pnl.playermodel == nil ) then pnl:SetVisible( str == "" ) continue end
+            if ( !pnl.playermodel:lower():find( str, 1, true ) && !pnl.model_path:lower():find( str, 1, true ) && !pnl:GetTooltip():lower():find( str, 1, true ) ) then
+                pnl:SetVisible( false )
+            else
+                pnl:SetVisible( true )
+            end
+        end
+        PanelSelect:InvalidateLayout()
 
-        local ModelScroll = modelListPnl:Add( "DScrollPanel" )
-        modelListPnl:AddSheet( "#EPS.Model.Icons", ModelScroll, "icon16/application_view_tile.png" )
-        ModelScroll:DockMargin( 2, 0, 2, 2 )
-        ModelScroll:Dock( FILL )
+        for _, line in pairs( ModelList:GetLines() ) do
+            if !IsValid(line) then continue end
+            if ( line:GetValue( 1 ) == nil ) then line:SetVisible( str == "" ) continue end
+            if ( !line:GetValue( 1 ):find( str, 1, true ) && !line:GetValue( 2 ):find( str, 1, true ) ) then
+                line:SetVisible( false )
+            else
+                line:SetVisible( true )
+            end
+        end
+        local temp = ModelList:AddLine()
+        temp:Remove()
+        ModelList:InvalidateLayout() -- Why does this not work
+        --Menu.ModelPopulate() 
 
-        local ModelIconLayout = ModelScroll:Add( "DIconLayout" )
-        ModelIconLayout:SetSpaceX( 2 )
-        ModelIconLayout:SetSpaceY( 2 )
-        ModelIconLayout:Dock( FILL )
+    end
 
-        local modelicons = { }
+    function Menu.ModelPopulate()
+
+        PanelSelect:Clear()
+        ModelList:Clear()
+
+        local ModelFilter = Menu.ModelFilter:GetValue() or nil
 
 
-        local ModelList = modelListPnl:Add( "DListView" )
-        modelListPnl:AddSheet( "#EPS.Model.Table", ModelList, "icon16/application_view_list.png" )
-        ModelList:DockMargin( 5, 0, 5, 5 )
-        ModelList:Dock( FILL )
-        ModelList:SetMultiSelect( false )
-        ModelList:AddColumn( "#EPS.Model.Table.Model" )
-        ModelList:AddColumn( "#EPS.Model.Table.Path" )
-        ModelList.OnRowSelected = function()
-            local sel = ModelList:GetSelected()
-            if not sel[1] then return end
-            local name = tostring( sel[1]:GetValue(1) )
-            Current.model = name
+
+        if BRANCH == "unknown" then
+            for name, model in SortedPairs( player_manager.AllValidModels() ) do
+                local icon = vgui.Create( "SpawnIcon" )
+                icon:SetModel( model )
+                icon:SetSize( 64, 64 )
+                icon:SetTooltip( name )
+                icon.playermodel = name
+                icon.model_path = model
+                icon.OpenMenu = function( button )
+                    local menu = DermaMenu()
+                    menu:AddOption( "#spawnmenu.menu.copy", function() SetClipboardText( model ) end ):SetIcon( "icon16/page_copy.png" )
+                    menu:Open()
+                end
+                PanelSelect:AddPanel( icon )
+            end
+        else
+            local cateorized = {}
+            for name, info in pairs( player_manager.GetAllPlayerModels() ) do
+                local catName = language.GetPhrase( info.category or "#spawnmenu.category.other" )
+                cateorized[ catName ] = cateorized[ catName ] or {}
+                table.insert( cateorized[ catName ], { title = language.GetPhrase( info.title ), model = info.model, name = name } )
+            end
+
+            for catName, items in SortedPairs( cateorized ) do
+
+                local label = vgui.Create( "DLabel" )
+                label:SetFont( "DermaLarge" )
+                label:SetText( catName )
+                label:SetTall( 32 )
+                label:SetDark( true )
+                label:SizeToContentsX()
+                label.m_strLineState = "ownline"
+                PanelSelect:AddPanel( label )
+                label.DoClick = function () end -- Unselectable
+
+                for _, info in SortedPairsByMemberValue( items, "title" ) do
+
+                    local icon = vgui.Create( "SpawnIcon" )
+                    icon:SetModel( info.model )
+                    icon:SetSize( 64, 64 )
+                    icon:SetTooltip( info.title )
+                    if info.name != info.title then
+                        icon:SetTooltip( info.title .. "\n" .. info.name )
+                    end
+                    icon.playermodel = info.name
+                    icon.model_path = info.model
+                    icon.OpenMenu = function( button )
+                        local menu = DermaMenu()
+                        menu:AddOption( "#spawnmenu.menu.copy", function() SetClipboardText( info.model ) end ):SetIcon( "icon16/page_copy.png" )
+                        menu:Open()
+                    end
+
+                    PanelSelect:AddPanel( icon )
+
+                    ModelList:AddLine( info.name, info.model )
+
+                end
+            end
+        end
+
+        function PanelSelect:OnActivePanelChanged(oldPnl, newPnl)
+            Current.model = newPnl.playermodel
             Current.bodygroups = "0"
             Current.skin = 0
             Current.flex = "0"
             Current.hand = ""
             Current.handgroups = "0"
             Current.handskin = 0
-            Current.modelid = FindModelID(name)
+            Current.modelid = FindModelID(newPnl.playermodel)
             Menu.UpdateFromConvars()
         end
 
-        local AllModels = player_manager.AllValidModels()
+    end
 
-        function Menu.ModelPopulate()
-
-            ModelIconLayout:Clear()
-            ModelList:Clear()
-
-            local ModelFilter = Menu.ModelFilter:GetValue() or nil
-
-            for name, model in SortedPairs( AllModels ) do
-
-                if IsInFilter( name, ModelFilter ) then
-                    if GetConVar( "cl_playermodel_selector_hide_defaults" ):GetBool() and DefaultPlayerModels[model] then continue end -- Testing, may have bugs.
-                    if GetConVar( "cl_playermodel_selector_ignorehands" ):GetBool() and player_manager.TranslatePlayerHands(name).model == model then continue end -- No
-                    local icon = ModelIconLayout:Add( "SpawnIcon" )
-                    icon:SetSize( 64, 64 )
-                    --icon:InvalidateLayout( true )
-                    icon:SetModel( model )
-                    icon:SetTooltip( name )
-                    table.insert( modelicons, icon )
-                    icon.DoClick = function()
-                        Current.model = name
-                        Current.bodygroups = "0"
-                        Current.skin = 0
-                        Current.flex = "0"
-                        Current.hand = ""
-                        Current.handgroups = "0"
-                        Current.handskin = 0
-                        Current.modelid = FindModelID(name)
-                        Menu.UpdateFromConvars()
-                    end
-
-                    ModelList:AddLine( name, model )
-
-                end
-
-            end
-
-        end
-
-        Menu.ModelPopulate()
+    Menu.ModelPopulate()
 
     sheet:AddSheet( "#EPS.Model", modelListPnl, "icon16/user.png" )
 -------------------------------------------------------------
@@ -1155,36 +1197,72 @@ function Menu.Setup()
     --
     -- Colors
     --
-    local colorPickerSize = math.min( window:GetTall() / 3, 260 )
+    local colorPickerSize = math.max( window:GetTall() / 2.5, 260 )
 
     local controlsTop = window:Add( "DPanel" )
     controlsTop:DockPadding( 8, 8, 8, 8 )
 
+    local wepcol
+    local plycol
+
+    if BRANCH == "unknown" then
+        local lbl = controlsTop:Add( "DLabel" )
+        lbl:SetText( "#EPS.Colors.PlayerColor" )
+        lbl:SetTextColor( Color( 0, 0, 0, 255 ) )
+        lbl:Dock( TOP )
+
+        plycol = controlsTop:Add( "DColorMixer" )
+        plycol:SetAlphaBar( false )
+        plycol:SetPalette( false )
+        plycol:Dock( TOP )
+        plycol:SetSize( 200, ( fh - 160) / 2 )
+
+        local lbl = controlsTop:Add( "DLabel" )
+        lbl:SetText( "#EPS.Colors.PhysgunColor" )
+        lbl:SetTextColor( Color( 0, 0, 0, 255 ) )
+        lbl:DockMargin( 0, 8, 0, 0 )
+        lbl:Dock( TOP )
+
+        wepcol = controlsTop:Add( "DColorMixer" )
+        wepcol:SetAlphaBar( false )
+        wepcol:SetPalette( false )
+        wepcol:Dock( TOP )
+        wepcol:SetSize( 200, ( fh - 160) / 2 )
+        wepcol:SetVector( Vector( GetConVar( "cl_weaponcolor" ):GetString() ) )
+    else
+
+        plycol = controlsTop:Add( "DColorMixer" )
+        plycol:Dock( TOP )
+        plycol:SetLabel( "#smwidget.color_plr" )
+        plycol:SetTall( colorPickerSize )
+        plycol:SetAlphaBar( false )
+        plycol:SetPaletteName( "plrmdlslct_ply_clr" )
+        SetDefaultColorFromConVar( plycol, "cl_playercolor" )
+
+        wepcol = controlsTop:Add( "DColorMixer" )
+        wepcol:Dock( TOP )
+        wepcol:DockMargin( 0, 32, 0, 0 )
+        wepcol:SetLabel( "#smwidget.color_wep" )
+        wepcol:SetTall( colorPickerSize )
+        wepcol:SetVector( Vector( GetConVarString( "cl_weaponcolor" ) ) )
+        wepcol:SetAlphaBar( false )
+        wepcol:SetPaletteName( "plrmdlslct_wep_clr" )
+        SetDefaultColorFromConVar( wepcol, "cl_weaponcolor" )
+    end
+    
 
 
-    local plycol = controlsTop:Add( "DColorMixer" )
-
-
-    plycol:Dock( TOP )
-    plycol:SetLabel( "#smwidget.color_plr" )
-    plycol:SetTall( colorPickerSize )
-    plycol:SetAlphaBar( false )
-    plycol:SetPaletteName( "plrmdlslct_ply_clr" )
-    SetDefaultColorFromConVar( plycol, "cl_playercolor" )
-
-
-
-    local wepcol = controlsTop:Add( "DColorMixer" )
-
-
-    wepcol:Dock( TOP )
-    wepcol:DockMargin( 0, 32, 0, 0 )
-    wepcol:SetLabel( "#smwidget.color_wep" )
-    wepcol:SetTall( colorPickerSize )
-    wepcol:SetVector( Vector( GetConVarString( "cl_weaponcolor" ) ) )
-    wepcol:SetAlphaBar( false )
-    wepcol:SetPaletteName( "plrmdlslct_wep_clr" )
-    SetDefaultColorFromConVar( wepcol, "cl_weaponcolor" )
+    local b = controlsTop:Add( "DButton" )
+    b:DockMargin( 0, 8, 0, 0 )
+    b:Dock( BOTTOM )
+    b:SetSize( 150, 20 )
+    b:SetText( "#EPS.Colors.ResetToDefault" )
+    b.DoClick = function()
+        plycol:SetVector( Vector( 0.24, 0.34, 0.41 ) )
+        wepcol:SetVector( Vector( 0.30, 1.80, 2.10 ) )
+        RunConsoleCommand( "cl_playercolor", "0.24 0.34 0.41" )
+        RunConsoleCommand( "cl_weaponcolor", "0.30 1.80 2.10" )
+    end
 
     sheet:AddSheet( "#smwidget.colors", controlsTop, "icon16/color_wheel.png" )
 ---------------------------------------------------------------------------------
@@ -1350,9 +1428,9 @@ function Menu.Setup()
         b:DockMargin( 0, 0, 10, 5 )
         b:SetText( "#EPS.Settings.Client.RebuildIcon" )
         b.DoClick = function()
-            for _, icon in pairs( modelicons ) do
+            for _, icon in pairs( PanelSelect:GetChildren() ) do
                 icon:RebuildSpawnIcon()
-            end
+            end 
 
             -- local thecount = 0
             for _, icon in pairs( modelicons_forhands ) do
@@ -1984,6 +2062,7 @@ function Menu.Setup()
                 local mdl = submdls[tonumber(groups[ k + 1 ] or 0)] or "idk"
                 tgroup = vgui.Create( "DLabel" )
                 tgroup:Dock( TOP )
+                tgroup:SetDark( true )
                 tgroup:DockMargin(10, -15, 0, 0)
                 mdl = string.Trim( mdl, "." )
                 mdl = string.Trim( mdl, "/" )
@@ -1999,7 +2078,7 @@ function Menu.Setup()
             bgroup.OnValueChanged = function(something1, val)
                 local submdls = ModelPreview.Entity:GetBodyGroups()[k + 1].submodels
                 if istable(submdls) then
-                    local model = submdls[math.Round(val)]
+                    local model = submdls[math.floor(val)]
                     model = string.Trim( model, "." )
                     model = string.Trim( model, "/" )
                     model = string.Trim( model, "\\" )
@@ -2071,7 +2150,7 @@ function Menu.Setup()
                 bgroup.OnValueChanged = function(something1, val)
                     local submdls = ModelPreview.EntityHands:GetBodyGroups()[k + 1].submodels
                     if istable(submdls) then
-                        tgroup:SetText(string.NiceName(submdls[math.Round(val)]) or "idk")
+                        tgroup:SetText(string.NiceName(submdls[math.floor(val)]) or "idk")
                     end
 
                     Menu.UpdateBodyGroups(something1, val)
@@ -2291,7 +2370,7 @@ function Menu.Setup()
 
         self:SetFOV( self.StoredFOV * math.min( ModelPreview:GetWide() / ModelPreview:GetTall(), 2.5 ) )
 
-        ModelPreview.Entity:SetEyeTarget( ModelPreview:GetCamPos() )
+        Entity:SetEyeTarget( ModelPreview:GetCamPos() )
     end
 
 end
