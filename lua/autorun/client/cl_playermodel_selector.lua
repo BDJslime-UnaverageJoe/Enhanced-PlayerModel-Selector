@@ -506,7 +506,7 @@ function Menu.Setup()
 
 
 
-        if BRANCH == "unknown" then
+        if BRANCH != "x86-64" and BRANCH != "dev" then
             for name, model in SortedPairs( player_manager.AllValidModels() ) do
                 local icon = vgui.Create( "SpawnIcon" )
                 icon:SetModel( model )
@@ -1205,7 +1205,7 @@ function Menu.Setup()
     local wepcol
     local plycol
 
-    if BRANCH == "unknown" then
+    if BRANCH != "x86-64" and BRANCH != "dev" then
         local lbl = controlsTop:Add( "DLabel" )
         lbl:SetText( "#EPS.Colors.PlayerColor" )
         lbl:SetTextColor( Color( 0, 0, 0, 255 ) )
@@ -1980,11 +1980,11 @@ function Menu.Setup()
 
         elseif ( pnl.type == "flex" ) then
 
-            if ( not handsTabActive ) then ModelPreview.Entity:SetFlexWeight( pnl.typenum, math.round( val, 2 ) ) end
+            if ( not handsTabActive ) then ModelPreview.Entity:SetFlexWeight( pnl.typenum, math.Round( val, 2 ) ) end
 
             local str = string.Explode( " ", Current.flex or "" )
             if ( #str < pnl.typenum + 1 ) then for i = 1, pnl.typenum + 1 do str[ i ] = str[ i ] or 0 end end
-            str[ pnl.typenum + 1 ] = math.round( val, 2 )
+            str[ pnl.typenum + 1 ] = math.Round( val, 2 )
             Current.flex = table.concat( str, " " )
 
         elseif ( pnl.type == "skin" ) then
