@@ -6,23 +6,6 @@ util.AddNetworkString("lf_playermodel_update")
 util.AddNetworkString("lf_playermodel_workshop")
 if not game.IsDedicated() then util.AddNetworkString("lf_playermodel_download") end
 
-local flag = { FCVAR_ARCHIVE, FCVAR_REPLICATED }
-local convars = { }
-convars["sv_playermodel_selector_force"]		= 1
-convars["sv_playermodel_selector_gamemodes"]	= 1
-convars["sv_playermodel_selector_instantly"]	= 1
-convars["sv_playermodel_selector_flexes"]		= 0
-convars["sv_playermodel_selector_limit"]		= 1
-convars["sv_playermodel_selector_debug"]		= 0
-convars["sv_playermodel_selector_workshop_enabled"]		= 1
-convars["sv_playermodel_selector_workshop_queue"]		= game.IsDedicated() and 1 or 0
-convars["sv_playermodel_selector_workshop_descriptors"]		= 0
-convars["sv_playermodel_selector_workshop_load"]		= 1
-for cvar, def in pairs( convars ) do
-    convars[cvar] = CreateConVar( cvar,	def, flag )
-end
-flag = nil
-
 local SetMDL = FindMetaTable("Entity").SetModel
 
 local addon_legs = false

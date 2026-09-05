@@ -20,6 +20,23 @@ EPS_DENY = 2
 EPS_REMOVE = 3
 EPS_INFO = -1
 
+local flag = { FCVAR_ARCHIVE, FCVAR_REPLICATED }
+local convars = { }
+convars["sv_playermodel_selector_force"]		= 1
+convars["sv_playermodel_selector_gamemodes"]	= 1
+convars["sv_playermodel_selector_instantly"]	= 1
+convars["sv_playermodel_selector_flexes"]		= 0
+convars["sv_playermodel_selector_limit"]		= 1
+convars["sv_playermodel_selector_debug"]		= 0
+convars["sv_playermodel_selector_workshop_enabled"]		= 1
+convars["sv_playermodel_selector_workshop_queue"]		= game.IsDedicated() and 1 or 0
+convars["sv_playermodel_selector_workshop_descriptors"]		= 0
+convars["sv_playermodel_selector_workshop_load"]		= 1
+for cvar, def in pairs( convars ) do
+    convars[cvar] = CreateConVar( cvar,	def, flag )
+end
+flag = nil
+
 hook.Remove( "Think", "garbage_day_ChooseHandsModel" ) -- Remove the hook, so we can actually change hands. Fix for https://steamcommunity.com/sharedfiles/filedetails/?id=3226024708
 
 function EPS_CheckValidAddon(result)
