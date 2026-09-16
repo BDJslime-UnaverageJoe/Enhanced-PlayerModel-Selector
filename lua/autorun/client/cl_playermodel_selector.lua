@@ -438,20 +438,23 @@ function Menu.Setup()
     -- Model List
     --
 
-    local modelListPnl = window:Add( "DPropertySheet" )
+    local modelPnl = window:Add( "DPropertySheet" )
 
-    Menu.ModelFilter = modelListPnl:Add( "DTextEntry" )
+    Menu.ModelFilter = modelPnl:Add( "DTextEntry" )
     Menu.ModelFilter:SetPlaceholderText( "#EPS.Search" )
     Menu.ModelFilter:DockMargin( 8, 0, 8, 8 )
     Menu.ModelFilter:Dock( TOP )
 
-    local PanelSelect  = modelListPnl:Add( "DPanelSelect" )
-    modelListPnl:AddSheet( "#EPS.Model.Icons", PanelSelect, "icon16/application_view_tile.png" )
+    local modelIconPanel = modelPnl:Add( "DPanel" )
+    modelIconPanel:DockMargin( 8, 0, 8, 8 )
+    modelIconPanel:Dock( FILL )
+    modelPnl:AddSheet( "#EPS.Model.Icons", modelIconPanel, "icon16/application_view_tile.png" )
+
+    local PanelSelect  = modelIconPanel:Add( "DPanelSelect" )
     PanelSelect:Dock( FILL )
 
-    local ModelList = modelListPnl:Add( "DListView" )
-    modelListPnl:AddSheet( "#EPS.Model.Table", ModelList, "icon16/application_view_list.png" )
-    ModelList:DockMargin( 5, 0, 5, 5 )
+    local ModelList = modelPnl:Add( "DListView" )
+    ModelList:DockMargin( 8, 0, 8, 8 )
     ModelList:Dock( FILL )
     ModelList:SetMultiSelect( false )
     ModelList:AddColumn( "#EPS.Model.Table.Model" )
@@ -468,6 +471,7 @@ function Menu.Setup()
         Current.modelid = FindModelID(name)
         Menu.UpdateFromConvars()
     end
+    modelPnl:AddSheet( "#EPS.Model.Table", ModelList, "icon16/application_view_list.png" )
 
     Menu.ModelFilter:SetUpdateOnType( true )
     Menu.ModelFilter.OnValueChange = function( s, str )
@@ -504,72 +508,49 @@ function Menu.Setup()
 
         local ModelFilter = Menu.ModelFilter:GetValue() or nil
 
+        local cateorized = {}
+        for name, info in pairs( player_manager.GetAllPlayerModels() ) do
+            local catName = language.GetPhrase( info.category or "#spawnmenu.category.other" )
+            cateorized[ catName ] = cateorized[ catName ] or {}
+            table.insert( cateorized[ catName ], { title = language.GetPhrase( info.title ), model = info.model, name = name } )
+        end
 
+        for catName, items in SortedPairs( cateorized ) do
 
-        if BRANCH != "x86-64" and BRANCH != "dev" then
-            for name, model in SortedPairs( player_manager.AllValidModels() ) do
-                if GetConVar( "cl_playermodel_selector_hide_defaults" ):GetBool() and DefaultPlayerModels[model] then continue end -- Testing, may have bugs.
-                if GetConVar( "cl_playermodel_selector_ignorehands" ):GetBool() and player_manager.TranslatePlayerHands(name).model == model then continue end -- No
+            local label = vgui.Create( "DLabel" )
+            label:SetFont( "DermaLarge" )
+            label:SetText( catName )
+            label:SetTall( 32 )
+            label:SetDark( true )
+            label:SizeToContentsX()
+            label.m_strLineState = "ownline"
+            PanelSelect:AddPanel( label )
+            label.DoClick = function () end -- Unselectable
+
+            for _, info in SortedPairsByMemberValue( items, "title" ) do
+
+                if GetConVar( "cl_playermodel_selector_hide_defaults" ):GetBool() and DefaultPlayerModels[info.model] then continue end -- Testing, may have bugs.
+                if GetConVar( "cl_playermodel_selector_ignorehands" ):GetBool() and player_manager.TranslatePlayerHands(info.name).model == info.model then continue end -- No
+
                 local icon = vgui.Create( "SpawnIcon" )
-                icon:SetModel( model )
+                icon:SetModel( info.model )
                 icon:SetSize( 64, 64 )
-                icon:SetTooltip( name )
-                icon.playermodel = name
-                icon.model_path = model
+                icon:SetTooltip( info.title )
+                if info.name != info.title then
+                    icon:SetTooltip( info.title .. "\n" .. info.name )
+                end
+                icon.playermodel = info.name
+                icon.model_path = info.model
                 icon.OpenMenu = function( button )
                     local menu = DermaMenu()
-                    menu:AddOption( "#spawnmenu.menu.copy", function() SetClipboardText( model ) end ):SetIcon( "icon16/page_copy.png" )
+                    menu:AddOption( "#spawnmenu.menu.copy", function() SetClipboardText( info.model ) end ):SetIcon( "icon16/page_copy.png" )
                     menu:Open()
                 end
+
                 PanelSelect:AddPanel( icon )
 
-                ModelList:AddLine( name, model )
-            end
-        else
-            local cateorized = {}
-            for name, info in pairs( player_manager.GetAllPlayerModels() ) do
-                local catName = language.GetPhrase( info.category or "#spawnmenu.category.other" )
-                cateorized[ catName ] = cateorized[ catName ] or {}
-                table.insert( cateorized[ catName ], { title = language.GetPhrase( info.title ), model = info.model, name = name } )
-            end
+                ModelList:AddLine( info.name, info.model )
 
-            for catName, items in SortedPairs( cateorized ) do
-
-                local label = vgui.Create( "DLabel" )
-                label:SetFont( "DermaLarge" )
-                label:SetText( catName )
-                label:SetTall( 32 )
-                label:SetDark( true )
-                label:SizeToContentsX()
-                label.m_strLineState = "ownline"
-                PanelSelect:AddPanel( label )
-                label.DoClick = function () end -- Unselectable
-
-                for _, info in SortedPairsByMemberValue( items, "title" ) do
-
-                    if GetConVar( "cl_playermodel_selector_hide_defaults" ):GetBool() and DefaultPlayerModels[info.model] then continue end -- Testing, may have bugs.
-                    if GetConVar( "cl_playermodel_selector_ignorehands" ):GetBool() and player_manager.TranslatePlayerHands(info.name).model == info.model then continue end -- No
-
-                    local icon = vgui.Create( "SpawnIcon" )
-                    icon:SetModel( info.model )
-                    icon:SetSize( 64, 64 )
-                    icon:SetTooltip( info.title )
-                    if info.name != info.title then
-                        icon:SetTooltip( info.title .. "\n" .. info.name )
-                    end
-                    icon.playermodel = info.name
-                    icon.model_path = info.model
-                    icon.OpenMenu = function( button )
-                        local menu = DermaMenu()
-                        menu:AddOption( "#spawnmenu.menu.copy", function() SetClipboardText( info.model ) end ):SetIcon( "icon16/page_copy.png" )
-                        menu:Open()
-                    end
-
-                    PanelSelect:AddPanel( icon )
-
-                    ModelList:AddLine( info.name, info.model )
-
-                end
             end
         end
 
@@ -589,7 +570,7 @@ function Menu.Setup()
 
     Menu.ModelPopulate()
 
-    sheet:AddSheet( "#EPS.Model", modelListPnl, "icon16/user.png" )
+    sheet:AddSheet( "#EPS.Model", modelPnl, "icon16/user.png" )
 -------------------------------------------------------------
     local handtab = sheet:Add( "DPropertySheet" )
 
@@ -602,8 +583,12 @@ function Menu.Setup()
         Menu.HandsFilter:SetUpdateOnType( true )
         Menu.HandsFilter.OnValueChange = function() Menu.HandsPopulate() end
 
-        local ModelScroll = handtab:Add( "DScrollPanel" )
-        handtab:AddSheet( "#EPS.Hands.Icons", ModelScroll, "icon16/application_view_tile.png" )
+        local handPanel = modelPnl:Add( "DPanel" )
+        handPanel:DockMargin( 8, 0, 8, 8 )
+        handPanel:Dock( FILL )
+        handtab:AddSheet( "#EPS.Hands.Icons", handPanel, "icon16/application_view_tile.png" )
+
+        local ModelScroll = handPanel:Add( "DScrollPanel" )
         ModelScroll:DockMargin( 2, 0, 2, 2 )
         ModelScroll:Dock( FILL )
 
@@ -977,8 +962,12 @@ function Menu.Setup()
             end
 
 
-            local HistoryScroll = shoptab:Add( "DScrollPanel" )
-            shoptab:AddSheet( "#EPS.Model.Icons", HistoryScroll, "icon16/application_view_tile.png" )
+            local panel = modelPnl:Add( "DPanel" )
+            panel:DockMargin( 8, 0, 8, 8 )
+            panel:Dock( FILL )
+            shoptab:AddSheet( "#EPS.Model.Icons", panel, "icon16/application_view_tile.png" )
+
+            local HistoryScroll = panel:Add( "DScrollPanel" )
             HistoryScroll:DockMargin( 2, 0, 2, 2 )
             HistoryScroll:Dock( FILL )
 
@@ -1209,55 +1198,23 @@ function Menu.Setup()
     local controlsTop = window:Add( "DPanel" )
     controlsTop:DockPadding( 8, 8, 8, 8 )
 
-    local wepcol
-    local plycol
+    local plycol = controlsTop:Add( "DColorMixer" )
+    plycol:Dock( TOP )
+    plycol:SetLabel( "#smwidget.color_plr" )
+    plycol:SetTall( colorPickerSize )
+    plycol:SetAlphaBar( false )
+    plycol:SetPaletteName( "plrmdlslct_ply_clr" )
+    SetDefaultColorFromConVar( plycol, "cl_playercolor" )
 
-    if BRANCH != "x86-64" and BRANCH != "dev" then
-        local lbl = controlsTop:Add( "DLabel" )
-        lbl:SetText( "#EPS.Colors.PlayerColor" )
-        lbl:SetTextColor( Color( 0, 0, 0, 255 ) )
-        lbl:Dock( TOP )
-
-        plycol = controlsTop:Add( "DColorMixer" )
-        plycol:SetAlphaBar( false )
-        plycol:SetPalette( false )
-        plycol:Dock( TOP )
-        plycol:SetSize( 200, ( fh - 160) / 2 )
-
-        local lbl = controlsTop:Add( "DLabel" )
-        lbl:SetText( "#EPS.Colors.PhysgunColor" )
-        lbl:SetTextColor( Color( 0, 0, 0, 255 ) )
-        lbl:DockMargin( 0, 8, 0, 0 )
-        lbl:Dock( TOP )
-
-        wepcol = controlsTop:Add( "DColorMixer" )
-        wepcol:SetAlphaBar( false )
-        wepcol:SetPalette( false )
-        wepcol:Dock( TOP )
-        wepcol:SetSize( 200, ( fh - 160) / 2 )
-        wepcol:SetVector( Vector( GetConVar( "cl_weaponcolor" ):GetString() ) )
-    else
-
-        plycol = controlsTop:Add( "DColorMixer" )
-        plycol:Dock( TOP )
-        plycol:SetLabel( "#smwidget.color_plr" )
-        plycol:SetTall( colorPickerSize )
-        plycol:SetAlphaBar( false )
-        plycol:SetPaletteName( "plrmdlslct_ply_clr" )
-        SetDefaultColorFromConVar( plycol, "cl_playercolor" )
-
-        wepcol = controlsTop:Add( "DColorMixer" )
-        wepcol:Dock( TOP )
-        wepcol:DockMargin( 0, 32, 0, 0 )
-        wepcol:SetLabel( "#smwidget.color_wep" )
-        wepcol:SetTall( colorPickerSize )
-        wepcol:SetVector( Vector( GetConVarString( "cl_weaponcolor" ) ) )
-        wepcol:SetAlphaBar( false )
-        wepcol:SetPaletteName( "plrmdlslct_wep_clr" )
-        SetDefaultColorFromConVar( wepcol, "cl_weaponcolor" )
-    end
-    
-
+    local wepcol = controlsTop:Add( "DColorMixer" )
+    wepcol:Dock( TOP )
+    wepcol:DockMargin( 0, 32, 0, 0 )
+    wepcol:SetLabel( "#smwidget.color_wep" )
+    wepcol:SetTall( colorPickerSize )
+    wepcol:SetVector( Vector( GetConVarString( "cl_weaponcolor" ) ) )
+    wepcol:SetAlphaBar( false )
+    wepcol:SetPaletteName( "plrmdlslct_wep_clr" )
+    SetDefaultColorFromConVar( wepcol, "cl_weaponcolor" )
 
     local b = controlsTop:Add( "DButton" )
     b:DockMargin( 0, 8, 0, 0 )
