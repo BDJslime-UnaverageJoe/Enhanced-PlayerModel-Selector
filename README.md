@@ -1,25 +1,26 @@
-# Enhanced Playermodel Selector With Localization Support (Based on Fesiug's Edit)
+# Enhanced Playermodel Selector With Experimental Workshop Support
 
-Enhanced PlayerModel Selector, but you can select your hands.
+Enhanced PlayerModel Selector, but you choose and download models straight from workshop and more up to date.
 
-Now you can Hide/Show default playermodels.
+Unlike alternatives such as Outfitter, the server will also download the chosen model and know its properties, allowing for better compatibility in gamemodes and other addons.
 
-You can select your hands separately from your playermodel.
+If you are using the additional workshop hotloader addon on a dedicated server you will need to use the gmsv_workshop module to enable workshop download on serverside(https://github.com/nooshstuff/gmsv_workshop).
 
 Incompatible with the original. Unsubscribe from it if you install this one.
 This addon may conflict with playermodels that include scripts which change skins and bodygroups.
-Modified Version based on [Fesiug's Edit](https://steamcommunity.com/sharedfiles/filedetails/?id=2257795841).
 
 ## Steam Workshop
 
-[Addon Page](https://steamcommunity.com/sharedfiles/filedetails/?id=2247755443)
+[Addon Page](https://steamcommunity.com/sharedfiles/filedetails/?id=3717454112)
 
 ## Credits
 
-More information on usage is available on the [original addon's](https://steamcommunity.com/sharedfiles/filedetails/?id=504945881) page.
-Thanks to [YuRaNnNzZZ](https://steamcommunity.com/profiles/76561198005173328) for the hands preview.
-Thanks to [Fesiug](https://steamcommunity.com/profiles/76561198254662493) for edited EPS.
-All credit goes to [LibertyForce](https://steamcommunity.com/profiles/76561198105279898), check out their other addons.
+- More information on usage is available on the [original addon's](https://steamcommunity.com/sharedfiles/filedetails/?id=504945881) page.
+- Thanks to [YuRaNnNzZZ](https://steamcommunity.com/profiles/76561198005173328) for the hands preview.
+- Thanks to [Fesiug](https://steamcommunity.com/profiles/76561198254662493) for edited EPS.
+- Thanks to [IBRS](https://steamcommunity.com/profiles/76561198314221237) for localization support.
+- All credit goes to [LibertyForce](https://steamcommunity.com/profiles/76561198105279898), check out their other addons.
+- Original code from Facepunch (https://github.com/Facepunch/garrysmod/blob/master/garrysmod/gamemodes/sandbox/gamemode/editor_player.lua).
 
 ## Localization
 
