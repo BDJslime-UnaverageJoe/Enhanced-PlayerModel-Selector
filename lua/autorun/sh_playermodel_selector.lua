@@ -21,19 +21,19 @@ EPS_REMOVE = 3
 EPS_INFO = -1
 
 local flag = { FCVAR_ARCHIVE, FCVAR_REPLICATED }
-local convars = { }
-convars["sv_playermodel_selector_force"]		= 1
-convars["sv_playermodel_selector_gamemodes"]	= 1
-convars["sv_playermodel_selector_instantly"]	= 1
-convars["sv_playermodel_selector_flexes"]		= 0
-convars["sv_playermodel_selector_limit"]		= 1
-convars["sv_playermodel_selector_debug"]		= 0
-convars["sv_playermodel_selector_workshop_enabled"]		= 1
-convars["sv_playermodel_selector_workshop_queue"]		= game.IsDedicated() and 1 or 0
-convars["sv_playermodel_selector_workshop_descriptors"]		= 0
-convars["sv_playermodel_selector_workshop_load"]		= 1
+ESP_convars = { }
+ESP_convars["sv_playermodel_selector_force"]		= 1
+ESP_convars["sv_playermodel_selector_gamemodes"]	= 1
+ESP_convars["sv_playermodel_selector_instantly"]	= 1
+ESP_convars["sv_playermodel_selector_flexes"]		= 0
+ESP_convars["sv_playermodel_selector_limit"]		= 1
+ESP_convars["sv_playermodel_selector_debug"]		= 0
+ESP_convars["sv_playermodel_selector_workshop_enabled"]		= 1
+ESP_convars["sv_playermodel_selector_workshop_queue"]		= game.IsDedicated() and 1 or 0
+ESP_convars["sv_playermodel_selector_workshop_descriptors"]		= 0
+ESP_convars["sv_playermodel_selector_workshop_load"]		= 1
 for cvar, def in pairs( convars ) do
-    convars[cvar] = CreateConVar( cvar,	def, flag )
+    ESP_convars[cvar] = CreateConVar( cvar,	def, flag )
 end
 flag = nil
 
@@ -49,7 +49,7 @@ function EPS_CheckValidAddon(result)
 	elseif not string.find(result["tags"], "Addon") or not string.find(result["tags"], "Model") then
 		print("not an addon")
 		return
-	elseif CLIENT and (not table.IsEmpty(result["content_descriptors"]) and not convars["sv_playermodel_selector_workshop_descriptors"]:GetBool()) then --- Ulib is having a stroke serverside????
+	elseif CLIENT and (not table.IsEmpty(result["content_descriptors"]) and not ESP_convars["sv_playermodel_selector_workshop_descriptors"]:GetBool()) then --- Ulib is having a stroke serverside????
 		print("nsfw")
 		return
 	elseif not string.find(string.lower(result["title"]), "playermodel") and not string.find(string.lower(result["title"]), "pm") then

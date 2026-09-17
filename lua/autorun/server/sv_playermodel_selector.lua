@@ -24,8 +24,8 @@ cvars.AddChangeCallback( "sv_playermodel_selector_debug", function() debugmode =
 net.Receive("lf_playermodel_cvar_change", function( len, ply )
     if ply:IsValid() and ply:IsPlayer() and ply:IsSuperAdmin() then
         local cvar = net.ReadString()
-        if not convars[cvar] then ply:PrintMessage(HUD_PRINTCONSOLE, "Illegal convar change") return end
-        convars[cvar]:SetString( net.ReadString() )
+        if not ESP_convars[cvar] then ply:PrintMessage(HUD_PRINTCONSOLE, "Illegal convar change") return end
+        ESP_convars[cvar]:SetString( net.ReadString() )
     end
 end )
 
@@ -96,8 +96,8 @@ local function CheckSteamworks()
 end
 
 local function AddNewModel(wsid, ply)
-    if not convars["sv_playermodel_selector_workshop_enabled"]:GetBool() then return end
-    if WSHL and convars["sv_playermodel_selector_workshop_load"]:GetBool() then
+    if not ESP_convars["sv_playermodel_selector_workshop_enabled"]:GetBool() then return end
+    if WSHL and ESP_convars["sv_playermodel_selector_workshop_load"]:GetBool() then
         wshl(wsid, false, true, 2)
         ActiveIDs[wsid] = true
         file.Write( "lf_playermodel_selector/sv_activeids.txt", util.TableToJSON(ActiveIDs))
@@ -139,7 +139,7 @@ local function UpdateQueue(filter)
 end
 
 net.Receive("lf_playermodel_workshop", function( len, ply )
-    if not convars["sv_playermodel_selector_workshop_enabled"]:GetBool() then return end
+    if not ESP_convars["sv_playermodel_selector_workshop_enabled"]:GetBool() then return end
     if ply:IsValid() and ply:IsPlayer() then
         local mode = net.ReadInt( 3 )
 
@@ -150,7 +150,7 @@ net.Receive("lf_playermodel_workshop", function( len, ply )
         local wsid = net.ReadString()
 
         if mode == EPS_REQUEST then
-            if Whitelist[wsid] or not convars["sv_playermodel_selector_workshop_queue"]:GetBool() then
+            if Whitelist[wsid] or not ESP_convars["sv_playermodel_selector_workshop_queue"]:GetBool() then
                 AddNewModel(wsid, ply)
                 return
             end
@@ -286,7 +286,7 @@ local function UpdatePlayerModel( ply, added )
         if mdlpath == player_manager.TranslatePlayerModel( "kleiner" ) and mdlname ~= "kleiner" then
             if ply:GetInfo( "cl_playermodelid " ) ~= "0" and not added then
                 local wsid = ply:GetInfo( "cl_playermodelid" )
-                if Whitelist[wsid] or not convars["sv_playermodel_selector_workshop_queue"]:GetBool() then
+                if Whitelist[wsid] or not ESP_convars["sv_playermodel_selector_workshop_queue"]:GetBool() then
                     AddNewModel(wsid, ply)
                     timer.Simple(1, function()
                         UpdatePlayerModel( ply, true )
