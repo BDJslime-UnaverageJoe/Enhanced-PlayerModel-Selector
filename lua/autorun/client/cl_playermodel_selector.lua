@@ -1394,7 +1394,7 @@ function Menu.Setup()
         b.DoClick = function()
             for _, icon in pairs( PanelSelect:GetChildren() ) do
                 icon:RebuildSpawnIcon()
-            end 
+            end
 
             -- local thecount = 0
             for _, icon in pairs( modelicons_forhands ) do
@@ -2106,7 +2106,8 @@ function Menu.Setup()
                     tgroup = vgui.Create( "DLabel" )
                     tgroup:Dock( TOP )
                     tgroup:DockMargin(10, -15, 0, 0)
-                    tgroup:SetText( string.NiceName( mdl ))
+                    local Translation = GetTranslation( "eps.model_bg." .. mdl )
+                    if !Translation then tgroup:SetText( string.NiceName(mdl) ) else tgroup:SetText( Translation ) end
 
                     h__bdControlspanel:AddItem( tgroup )
                 end
@@ -2114,7 +2115,11 @@ function Menu.Setup()
                 bgroup.OnValueChanged = function(something1, val)
                     local submdls = ModelPreview.EntityHands:GetBodyGroups()[k + 1].submodels
                     if istable(submdls) then
-                        tgroup:SetText(string.NiceName(submdls[math.floor(val)]) or "idk")
+                        local model = submdls[math.Round(val)]
+                        model = string.StripExtension( model )
+                        model = string.GetFileFromFilename( model )
+                        local Translation = GetTranslation( "eps.model_bg." .. model )
+                        if !Translation then tgroup:SetText( string.NiceName(model) ) else tgroup:SetText( Translation ) end
                     end
 
                     Menu.UpdateBodyGroups(something1, val)
