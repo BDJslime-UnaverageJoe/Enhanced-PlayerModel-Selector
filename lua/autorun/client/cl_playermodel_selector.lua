@@ -2369,6 +2369,10 @@ hook.Add( "PostGamemodeLoaded", "lf_playermodel_desktop_hook", function()
                     RunConsoleCommand( "playermodel_selector" )
                 end
             } )
+            if GAMEMODE_NAME == "cinema_modded" then                    
+                concommand.Remove("cinema_playermodel_selector")
+                concommand.Add("cinema_playermodel_selector", Menu.Toggle)
+            end
         end
 end )
 
