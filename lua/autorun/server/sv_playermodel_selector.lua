@@ -13,14 +13,6 @@ local addon_legs = false
 local debugmode = GetConVar( "sv_playermodel_selector_debug" ):GetBool() or false
 cvars.AddChangeCallback( "sv_playermodel_selector_debug", function() debugmode = GetConVar( "sv_playermodel_selector_debug" ):GetBool() end )
 
---local function client_sync( ply )
---	net.Start("lf_playermodel_client_sync")
---	net.WriteBool( addon_vox )
---	net.Send( ply )
---end
---hook.Add( "PlayerInitialSpawn", "lf_playermodel_client_sync_hook", client_sync )
---net.Receive("lf_playermodel_client_sync", function( len, ply ) client_sync( ply ) end )
-
 net.Receive("lf_playermodel_cvar_change", function( len, ply )
     if ply:IsValid() and ply:IsPlayer() and ply:IsSuperAdmin() then
         local cvar = net.ReadString()
@@ -28,16 +20,6 @@ net.Receive("lf_playermodel_cvar_change", function( len, ply )
         ESP_convars[cvar]:SetString( net.ReadString() )
     end
 end )
-
-
-if not file.Exists( "lf_playermodel_selector", "DATA" ) then file.CreateDir( "lf_playermodel_selector" ) end
-if file.Exists( "playermodel_selector_blacklist.txt", "DATA" ) then -- Migrate from old version
-    if not file.Exists( "lf_playermodel_selector/sv_blacklist.txt", "DATA" ) then
-        local content = file.Read( "playermodel_selector_blacklist.txt", "DATA" )
-        file.Write( "lf_playermodel_selector/sv_blacklist.txt", content )
-    end
-    file.Delete( "playermodel_selector_blacklist.txt" )
-end
 
 local Blacklist = { }
 if file.Exists( "lf_playermodel_selector/sv_blacklist.txt", "DATA" ) then
