@@ -302,7 +302,7 @@ function Menu.Setup()
             window:SetSize( ScrW(), ScrH() )
             window:Center()
             window:SetDraggable( false )
-            Menu.ApplyButton:SetPos( fw / 2 - ApplyButtonWidth * 1.35, 0 )
+            Menu.ApplyButton:SetPos( 5, 0 )
             Menu.WorkshopButton:SetPos( ScrW() - (WorkshopButtonWidth + 110), 6 )
 
             Menu.ResetButton:SetPos( 5, ScrH() - 60 )
@@ -321,7 +321,7 @@ function Menu.Setup()
             window:Center()
             window:SetDraggable( true )
 
-            Menu.ApplyButton:SetPos( fw / 2 - ApplyButtonWidth * 1.35, 0 )
+            Menu.ApplyButton:SetPos( 5, 0 )
             Menu.ApplyButton:SetVisible( true )
             Menu.ResetButton:SetPos( 5, fh - 60 )
             Menu.AnimButton:SetPos( 20 + ResetButtonWidth, fh - 60 )
@@ -2369,7 +2369,7 @@ hook.Add( "PostGamemodeLoaded", "lf_playermodel_desktop_hook", function()
                     RunConsoleCommand( "playermodel_selector" )
                 end
             } )
-            if GAMEMODE_NAME == "cinema_modded" then                    
+            if GAMEMODE_NAME == "cinema_modded" then
                 concommand.Remove("cinema_playermodel_selector")
                 concommand.Add("cinema_playermodel_selector", Menu.Toggle)
             end
