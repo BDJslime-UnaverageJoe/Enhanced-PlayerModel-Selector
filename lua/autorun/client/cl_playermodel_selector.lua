@@ -2087,7 +2087,8 @@ function Menu.Setup()
 
                 local bgroup = vgui.Create( "DNumSlider" )
                 bgroup:Dock( TOP )
-                bgroup:SetText( string.NiceName( ModelPreview.EntityHands:GetBodygroupName( k ) ) )
+                local Translation = GetTranslation( "eps.model_bg." .. ModelPreview.EntityHands:GetBodygroupName( k ) )
+                if !Translation then bgroup:SetText( string.NiceName( ModelPreview.EntityHands:GetBodygroupName( k ) ) ) else bgroup:SetText( Translation ) end
                 bgroup:SetDark( true )
                 bgroup:SetTall( 50 )
                 bgroup:SetDecimals( 0 )
