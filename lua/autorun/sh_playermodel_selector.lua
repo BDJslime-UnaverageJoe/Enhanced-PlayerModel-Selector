@@ -32,7 +32,7 @@ ESP_convars["sv_playermodel_selector_workshop_enabled"]		= 1
 ESP_convars["sv_playermodel_selector_workshop_queue"]		= game.IsDedicated() and 1 or 0
 ESP_convars["sv_playermodel_selector_workshop_descriptors"]		= 0
 ESP_convars["sv_playermodel_selector_workshop_load"]		= 1
-for cvar, def in pairs( convars ) do
+for cvar, def in pairs( ESP_convars ) do
     ESP_convars[cvar] = CreateConVar( cvar,	def, flag )
 end
 flag = nil
